@@ -1,5 +1,8 @@
 import type {
+  AdminCondominiumOverview,
   AdminCondominiumListItem,
+  CreateAdminUnitMemberInput,
+  CreateAdminUnitMemberResult,
   CreateAdminCondominiumInput,
   CreateAdminCondominiumResult,
 } from "@/lib/admin/condominiums";
@@ -27,4 +30,19 @@ export async function createCondominium(input: CreateAdminCondominiumInput) {
   });
 
   return parseResponse<CreateAdminCondominiumResult>(response);
+}
+
+export async function fetchCondominiumOverview(condominiumId: string) {
+  const response = await fetch(`/api/admin/condominiums/${condominiumId}`, { cache: "no-store" });
+  return parseResponse<AdminCondominiumOverview>(response);
+}
+
+export async function createUnitMember(input: CreateAdminUnitMemberInput) {
+  const response = await fetch("/api/admin/unit-members/create", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  return parseResponse<CreateAdminUnitMemberResult>(response);
 }

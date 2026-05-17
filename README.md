@@ -54,6 +54,14 @@ Base da Fase 3:
 - Opcao de criar unidade padrao durante o cadastro
 - Tratamento de loading, erro e validacao sem expor `ADMIN_API_SECRET` no browser
 
+Base da Fase 4:
+
+- Tela real de unidades por condominio consumindo `/api/admin/condominiums/[id]`
+- Tela real de moradores por condominio usando o mesmo overview administrativo
+- Criacao de unidade + morador pela rota `/api/admin/unit-members/create`
+- Vinculo de morador a unidade existente ou criacao de nova unidade no mesmo formulario
+- Configuracoes iniciais de chamada: ativo, recebe chamadas, liga para portaria e ordem
+
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`

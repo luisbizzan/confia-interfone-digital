@@ -28,15 +28,70 @@ export type CreateAdminCondominiumResult = {
   default_unit_id?: string | null;
 };
 
+export type AdminUnitMember = {
+  id: string;
+  user_id: string;
+  member_type: string;
+  active_for_calls: boolean;
+  can_receive_calls: boolean;
+  can_make_calls: boolean;
+  call_order: number;
+  created_at?: string;
+};
+
+export type AdminUnit = {
+  id: string;
+  type: string;
+  block?: string | null;
+  number: string;
+  created_at?: string;
+  members: AdminUnitMember[];
+};
+
+export type AdminRecentCall = {
+  id: string;
+  unit_id?: string | null;
+  status: string;
+  origin_type?: string | null;
+  target_type?: string | null;
+  created_at?: string;
+};
+
 export type AdminCondominiumOverview = {
   condominium: AdminCondominiumListItem;
-  portaria_user?: {
+  portaria_devices?: {
     id: string;
-    full_name?: string;
-    email?: string;
-  };
-  units?: unknown[];
-  members?: unknown[];
+    user_id: string;
+    name: string;
+    is_active: boolean;
+    can_receive_calls: boolean;
+    can_make_calls: boolean;
+    priority_order: number;
+    created_at?: string;
+  }[];
+  units: AdminUnit[];
+  recent_calls: AdminRecentCall[];
+};
+
+export type CreateAdminUnitMemberInput = {
+  condominium_id: string;
+  unit_id?: string | null;
+  unit_type?: string | null;
+  unit_block?: string | null;
+  unit_number?: string | null;
+  resident_email: string;
+  resident_password: string;
+  member_type?: string | null;
+  call_order?: number | null;
+  active_for_calls?: boolean;
+  can_receive_calls?: boolean;
+  can_make_calls?: boolean;
+};
+
+export type CreateAdminUnitMemberResult = {
+  unit_id: string;
+  resident_user_id: string;
+  unit_member_id: string;
 };
 
 export async function listAdminCondominiums() {
@@ -62,5 +117,15 @@ export async function getAdminCondominium(condominiumId: string) {
   return adminEdgeRequest<AdminCondominiumOverview>({
     path: `admin-get-condominium?${params.toString()}`,
     init: { method: "GET" },
+  });
+}
+
+export async function createAdminUnitMember(input: CreateAdminUnitMemberInput) {
+  return adminEdgeRequest<CreateAdminUnitMemberResult>({
+    path: "admin-create-unit-member",
+    init: {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
   });
 }

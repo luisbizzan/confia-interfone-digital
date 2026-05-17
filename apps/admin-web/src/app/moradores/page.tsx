@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from "@/components/module-placeholder";
+import { ResidentsPage } from "@/features/residents/residents-page";
 
 export default function MoradoresPage() {
-  return <ModulePlaceholder moduleId="moradores" />;
+  return <ResidentsPage />;
 }

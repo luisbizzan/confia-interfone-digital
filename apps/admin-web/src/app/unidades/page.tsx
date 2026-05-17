@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from "@/components/module-placeholder";
+import { UnitsPage } from "@/features/units/units-page";
 
 export default function UnidadesPage() {
-  return <ModulePlaceholder moduleId="unidades" />;
+  return <UnitsPage />;
 }

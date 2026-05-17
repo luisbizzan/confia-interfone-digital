@@ -44,3 +44,12 @@ A tela de condominios ja usa dados reais do backend:
 - Formulario com dados do condominio, email/senha da portaria e nome do dispositivo
 - Criacao opcional de unidade padrao
 - Status de carregamento, erro e validacao
+
+## Fase 4
+
+Unidades e moradores ja usam dados reais do backend:
+
+- Listagem por condominio pela rota `/api/admin/condominiums/[id]`
+- Criacao de unidade e morador pela rota `/api/admin/unit-members/create`
+- Dialog compartilhado para criar nova unidade ou vincular morador a unidade existente
+- Configuracao inicial de chamada do morador
