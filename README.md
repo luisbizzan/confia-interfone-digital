@@ -21,6 +21,7 @@ npx supabase functions deploy call-timeout-processor --no-verify-jwt
 
 ## Fluxos Principais
 
+- Onboarding administrativo: `admin_create_condominium_with_portaria`
 - Portaria para unidade: `start_portaria_call`
 - Unidade para portaria: `start_unit_to_portaria_call`
 - Morador atende chamada da unidade: `answer_call`

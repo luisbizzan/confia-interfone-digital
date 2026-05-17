@@ -69,6 +69,34 @@ O backend espera:
 - `user_profiles` vinculado ao `condominium_id` com role `PORTARIA`;
 - `portaria_devices` ativo para esse `user_id`.
 
+### RPC administrativa de onboarding
+
+Use `admin_create_condominium_with_portaria(...)` depois de criar o usuario da portaria no Supabase Auth via Admin API.
+
+Essa RPC e restrita a `service_role`.
+
+Contrato:
+
+```json
+{
+  "p_condominium_name": "Condominio Exemplo",
+  "p_condominium_document": "00.000.000/0000-00",
+  "p_portaria_user_id": "<auth.users.id>",
+  "p_portaria_device_name": "Portaria Principal",
+  "p_create_default_unit": false,
+  "p_default_unit_type": "APARTMENT",
+  "p_default_unit_block": "A",
+  "p_default_unit_number": "101"
+}
+```
+
+Ela cria:
+
+- `condominiums`;
+- `user_profiles` do usuario da portaria com role `PORTARIA`;
+- `portaria_devices` ativo;
+- opcionalmente uma unidade inicial.
+
 ### Direcoes de chamada
 
 #### Portaria para unidade
