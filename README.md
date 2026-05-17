@@ -29,4 +29,10 @@ npx supabase functions deploy call-timeout-processor --no-verify-jwt
 - Unidade para portaria: `start_unit_to_portaria_call`
 - Morador atende chamada da unidade: `answer_call`
 - Portaria atende chamada recebida: `answer_portaria_call`
+- Cancelar chamada: `cancel_call`
+- Encerrar chamada: `end_call`
+- Contexto do usuario: `get_current_user_context`
+- Chamadas pendentes: `get_my_pending_calls`
+- Historico de chamadas: `get_my_call_history`
+- Realtime: `calls`, `call_attempts`, `call_events`
 - Scheduler de timeout: `call-timeout-processor` chamando `process_expired_calls`

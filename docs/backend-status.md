@@ -46,6 +46,8 @@ O valor de `SUPABASE_CRON_SECRET` precisa ser igual ao valor de `CRON_SECRET`.
 - Unidade ligar para portaria: `rpc/start_unit_to_portaria_call` com `{ "p_unit_id": "<uuid>" }`
 - Atender chamada: `rpc/answer_call` com `{ "p_call_id": "<uuid>", "p_user_id": "<auth.uid()>" }`
 - Portaria atender chamada recebida: `rpc/answer_portaria_call` com `{ "p_call_id": "<uuid>" }`
+- Cancelar chamada em andamento: `rpc/cancel_call` com `{ "p_call_id": "<uuid>", "p_reason": "opcional" }`
+- Encerrar chamada: `rpc/end_call` com `{ "p_call_id": "<uuid>", "p_reason": "opcional" }`
 - Compatibilidade temporaria: `rpc/start_call` chama internamente `start_portaria_call`.
 
 O frontend nao deve escrever diretamente em `calls` ou `call_attempts`.
@@ -212,6 +214,62 @@ A resposta de detalhe inclui:
 - unidades;
 - membros de cada unidade;
 - chamadas recentes.
+
+## Auditoria de chamadas
+
+A tabela `call_events` registra o ciclo de vida da chamada:
+
+- `CALL_CREATED`
+- `ATTEMPT_CREATED`
+- `ATTEMPT_NO_ANSWER`
+- `CALL_ANSWERED`
+- `CALL_MISSED`
+- `CALL_CANCELLED`
+- `CALL_ENDED`
+
+Eventos possuem:
+
+- `condominium_id`
+- `call_id`
+- `event_type`
+- `actor_user_id`
+- `actor_type`
+- `metadata`
+- `created_at`
+
+## Leituras para o app
+
+RPCs autenticadas para o frontend/app:
+
+- `get_current_user_context()`: retorna perfil, unidades vinculadas e dispositivos de portaria do usuario logado.
+- `get_my_pending_calls()`: retorna chamadas pendentes para o morador e para a portaria.
+- `get_my_call_history(p_limit)`: retorna historico de chamadas visivel para o usuario.
+
+## Realtime
+
+Realtime esta habilitado para:
+
+- `calls`
+- `call_attempts`
+- `call_events`
+
+O app deve assinar eventos filtrando pelo `condominium_id`, `unit_id` ou ids especificos de chamada conforme a tela.
+
+Eventos recomendados:
+
+- tela de chamada do morador: observar `call_attempts` e `calls`;
+- tela da portaria: observar `calls` com `target_type = PORTARIA` e `call_events`;
+- historico/auditoria: observar `call_events`.
+
+## Segurança final do MVP
+
+Tabelas sensiveis nao devem receber `insert`, `update` ou `delete` diretamente de `anon` ou `authenticated`.
+
+Escritas de negócio devem passar por RPCs ou Edge Functions:
+
+- chamadas: `start_portaria_call`, `start_unit_to_portaria_call`, `answer_call`, `answer_portaria_call`, `cancel_call`, `end_call`;
+- administracao: Edge Functions com `x-admin-secret`;
+- timeout: Edge Function `call-timeout-processor` com `x-cron-secret`.
 
 Resposta:
 
