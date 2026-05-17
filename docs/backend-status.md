@@ -32,6 +32,7 @@ Registros antigos com `TIMEOUT` devem ser migrados para `NO_ANSWER`.
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `CRON_SECRET`
+- `ADMIN_API_SECRET`
 
 ### GitHub Actions
 
@@ -96,6 +97,50 @@ Ela cria:
 - `user_profiles` do usuario da portaria com role `PORTARIA`;
 - `portaria_devices` ativo;
 - opcionalmente uma unidade inicial.
+
+### Edge Function administrativa
+
+Use `admin-create-condominium` para fazer o fluxo completo em uma chamada protegida por `x-admin-secret`.
+
+Endpoint:
+
+```text
+POST /functions/v1/admin-create-condominium
+```
+
+Headers:
+
+```text
+Content-Type: application/json
+x-admin-secret: <ADMIN_API_SECRET>
+```
+
+Body:
+
+```json
+{
+  "condominium_name": "Condominio Exemplo",
+  "condominium_document": "00.000.000/0000-00",
+  "portaria_email": "portaria@example.com",
+  "portaria_password": "senha-inicial-forte",
+  "portaria_device_name": "Portaria Principal",
+  "create_default_unit": true,
+  "default_unit_type": "APARTMENT",
+  "default_unit_block": "A",
+  "default_unit_number": "101"
+}
+```
+
+Resposta:
+
+```json
+{
+  "condominium_id": "<uuid>",
+  "portaria_user_id": "<uuid>",
+  "portaria_device_id": "<uuid>",
+  "default_unit_id": "<uuid ou null>"
+}
+```
 
 ### Direcoes de chamada
 

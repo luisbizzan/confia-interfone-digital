@@ -35,3 +35,8 @@ deno_version = 2
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/call-timeout-processor/index.ts"
+
+[functions.admin-create-condominium]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin-create-condominium/index.ts"
