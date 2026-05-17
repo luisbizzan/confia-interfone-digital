@@ -131,6 +131,60 @@ Body:
 }
 ```
 
+Use `admin-create-unit-member` para cadastrar uma unidade e um morador, ou vincular um morador novo a uma unidade existente.
+
+Endpoint:
+
+```text
+POST /functions/v1/admin-create-unit-member
+```
+
+Headers:
+
+```text
+Content-Type: application/json
+x-admin-secret: <ADMIN_API_SECRET>
+```
+
+Body para criar unidade + morador:
+
+```json
+{
+  "condominium_id": "<uuid>",
+  "unit_type": "APARTMENT",
+  "unit_block": "A",
+  "unit_number": "102",
+  "resident_email": "morador@example.com",
+  "resident_password": "senha-inicial-forte",
+  "member_type": "RESIDENT",
+  "active_for_calls": true,
+  "can_receive_calls": true,
+  "can_make_calls": true
+}
+```
+
+Body para adicionar morador a unidade existente:
+
+```json
+{
+  "condominium_id": "<uuid>",
+  "unit_id": "<uuid>",
+  "resident_email": "morador2@example.com",
+  "resident_password": "senha-inicial-forte",
+  "call_order": 2
+}
+```
+
+Resposta:
+
+```json
+{
+  "unit_id": "<uuid>",
+  "resident_user_id": "<uuid>",
+  "unit_member_id": "<uuid>"
+}
+```
+
 Resposta:
 
 ```json

@@ -22,6 +22,7 @@ npx supabase functions deploy call-timeout-processor --no-verify-jwt
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`
+- Edge Function administrativa: `admin-create-unit-member`
 - Onboarding administrativo: `admin_create_condominium_with_portaria`
 - Portaria para unidade: `start_portaria_call`
 - Unidade para portaria: `start_unit_to_portaria_call`

@@ -40,3 +40,8 @@ entrypoint = "./functions/call-timeout-processor/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/admin-create-condominium/index.ts"
+
+[functions.admin-create-unit-member]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin-create-unit-member/index.ts"
