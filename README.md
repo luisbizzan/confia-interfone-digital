@@ -38,6 +38,14 @@ Stack inicial:
 - React Hook Form
 - Zod
 
+Base da Fase 2:
+
+- Navegacao responsiva com sidebar no desktop e drawer no mobile
+- Rotas iniciais: dashboard, condominios, unidades, moradores, chamadas, auditoria e configuracoes
+- Componentes reutilizaveis: metric card, page header, status chip, empty state e lista responsiva
+- Rota server-side inicial: `/api/admin/condominiums`
+- Wrapper server-side para a Edge Function `admin-get-condominium`, mantendo `ADMIN_API_SECRET` fora do browser
+
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`

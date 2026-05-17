@@ -23,22 +23,24 @@ import {
   Toolbar,
   Typography,
 } from "@mui/material";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 const drawerWidth = 272;
 
 const navItems = [
-  { label: "Dashboard", icon: <DashboardIcon />, active: true },
-  { label: "Condomínios", icon: <ApartmentIcon /> },
-  { label: "Unidades", icon: <HomeWorkIcon /> },
-  { label: "Moradores", icon: <PeopleIcon /> },
-  { label: "Chamadas", icon: <CallIcon /> },
-  { label: "Auditoria", icon: <HistoryIcon /> },
-  { label: "Configurações", icon: <SettingsIcon /> },
+  { label: "Dashboard", icon: <DashboardIcon />, href: "/" },
+  { label: "Condomínios", icon: <ApartmentIcon />, href: "/condominios" },
+  { label: "Unidades", icon: <HomeWorkIcon />, href: "/unidades" },
+  { label: "Moradores", icon: <PeopleIcon />, href: "/moradores" },
+  { label: "Chamadas", icon: <CallIcon />, href: "/chamadas" },
+  { label: "Auditoria", icon: <HistoryIcon />, href: "/auditoria" },
+  { label: "Configurações", icon: <SettingsIcon />, href: "/configuracoes" },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
 
   const drawer = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -52,25 +54,32 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </Stack>
       <Divider />
       <List sx={{ px: 1.5, py: 1.5 }}>
-        {navItems.map((item) => (
-          <ListItemButton
-            key={item.label}
-            selected={item.active}
-            sx={{
-              borderRadius: 1,
-              mb: 0.5,
-              minHeight: 44,
-              "&.Mui-selected": {
-                bgcolor: "primary.main",
-                color: "primary.contrastText",
-                "& .MuiListItemIcon-root": { color: "primary.contrastText" },
-              },
-            }}
-          >
-            <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
-            <ListItemText primary={<Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>} />
-          </ListItemButton>
-        ))}
+        {navItems.map((item) => {
+          const selected = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+
+          return (
+            <ListItemButton
+              component="a"
+              href={item.href}
+              key={item.label}
+              onClick={() => setMobileOpen(false)}
+              selected={selected}
+              sx={{
+                borderRadius: 1,
+                mb: 0.5,
+                minHeight: 44,
+                "&.Mui-selected": {
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText",
+                  "& .MuiListItemIcon-root": { color: "primary.contrastText" },
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40 }}>{item.icon}</ListItemIcon>
+              <ListItemText primary={<Typography sx={{ fontWeight: 700 }}>{item.label}</Typography>} />
+            </ListItemButton>
+          );
+        })}
       </List>
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ p: 2 }}>

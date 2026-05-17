@@ -1,3 +1,5 @@
+import "server-only";
+
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const adminSecret = process.env.ADMIN_API_SECRET;
 

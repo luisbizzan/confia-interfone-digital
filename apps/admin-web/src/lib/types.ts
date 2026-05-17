@@ -6,3 +6,14 @@ export type SummaryMetric = {
   helper: string;
   tone: StatusTone;
 };
+
+export type AdminRouteStatus = "ready" | "planned" | "attention";
+
+export type AdminRouteOverview = {
+  id: string;
+  title: string;
+  owner: string;
+  statusLabel: string;
+  statusTone: StatusTone;
+  details: string;
+};

@@ -1,78 +1,77 @@
+"use client";
+
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import CallIcon from "@mui/icons-material/Call";
 import DoorFrontIcon from "@mui/icons-material/DoorFront";
 import PeopleIcon from "@mui/icons-material/People";
-import {
-  Box,
-  Card,
-  CardContent,
-  Chip,
-  Grid,
-  List,
-  ListItem,
-  ListItemText,
-  Stack,
-  Typography,
-} from "@mui/material";
+import { Box, Card, CardContent, Chip, Grid, List, ListItem, ListItemText, Stack, Typography } from "@mui/material";
 import { AppShell } from "@/components/app-shell";
+import { ResponsiveRecordList } from "@/components/data-display/responsive-record-list";
+import { StatusChip } from "@/components/data-display/status-chip";
+import { MetricCard } from "@/components/dashboard/metric-card";
 import { PageHeader } from "@/components/page-header";
-import type { SummaryMetric } from "@/lib/types";
+import { dashboardMetrics, routeOverviews } from "@/lib/admin/dashboard";
+
+const metricIcons = [
+  <ApartmentIcon key="condos" />,
+  <DoorFrontIcon key="units" />,
+  <PeopleIcon key="people" />,
+  <CallIcon key="calls" />,
+];
 
 export default function Home() {
-  const metrics: SummaryMetric[] = [
-    { label: "Condomínios", value: "0", helper: "Pronto para listar via admin API", tone: "info" },
-    { label: "Unidades", value: "0", helper: "Cadastro entra na Fase 4", tone: "success" },
-    { label: "Moradores", value: "0", helper: "Vínculo por unidade", tone: "warning" },
-    { label: "Chamadas", value: "0", helper: "Realtime preparado no backend", tone: "default" },
-  ];
-
-  const icons = [
-    <ApartmentIcon key="condos" />,
-    <DoorFrontIcon key="units" />,
-    <PeopleIcon key="people" />,
-    <CallIcon key="calls" />,
-  ];
-
   return (
     <AppShell>
       <PageHeader
+        actionHref="/condominios"
         actionLabel="Novo condomínio"
         description="Base responsiva criada para operar condomínios, unidades, portaria e chamadas."
         title="Dashboard"
       />
 
       <Grid container spacing={2.5}>
-        {metrics.map((metric, index) => (
+        {dashboardMetrics.map((metric, index) => (
           <Grid key={metric.label} size={{ xs: 12, sm: 6, lg: 3 }}>
-            <Card>
-              <CardContent>
-                <Stack direction="row" spacing={2} sx={{ justifyContent: "space-between" }}>
-                  <Box>
-                    <Typography color="text.secondary" variant="body2">
-                      {metric.label}
-                    </Typography>
-                    <Typography sx={{ mt: 1 }} variant="h2">
-                      {metric.value}
-                    </Typography>
-                  </Box>
-                  <Chip
-                    color={metric.tone === "default" ? undefined : metric.tone}
-                    icon={icons[index]}
-                    label="MVP"
-                  />
-                </Stack>
-                <Typography color="text.secondary" sx={{ mt: 2 }} variant="body2">
-                  {metric.helper}
-                </Typography>
-              </CardContent>
-            </Card>
+            <MetricCard {...metric} icon={metricIcons[index]} />
           </Grid>
         ))}
       </Grid>
 
       <Grid container spacing={2.5} sx={{ mt: 0.5 }}>
         <Grid size={{ xs: 12, lg: 7 }}>
-          <Card>
+          <ResponsiveRecordList
+            columns={[
+              {
+                key: "title",
+                header: "Módulo",
+                render: (item) => <Typography sx={{ fontWeight: 700 }}>{item.title}</Typography>,
+              },
+              {
+                key: "owner",
+                header: "Responsável",
+                render: (item) => item.owner,
+              },
+              {
+                key: "status",
+                header: "Status",
+                render: (item) => <StatusChip label={item.statusLabel} tone={item.statusTone} />,
+              },
+              {
+                key: "details",
+                header: "Próximo uso",
+                render: (item) => item.details,
+              },
+            ]}
+            description="Mapa inicial dos módulos que serão preenchidos nas próximas fases."
+            emptyDescription="Os módulos aparecerão aqui conforme forem habilitados."
+            emptyTitle="Nenhum módulo configurado"
+            getKey={(item) => item.id}
+            items={routeOverviews}
+            title="Módulos do backoffice"
+          />
+        </Grid>
+        <Grid size={{ xs: 12, lg: 5 }}>
+          <Card sx={{ height: "100%" }}>
             <CardContent>
               <Stack
                 direction={{ xs: "column", sm: "row" }}
@@ -80,42 +79,25 @@ export default function Home() {
                 sx={{ justifyContent: "space-between" }}
               >
                 <Box>
-                  <Typography variant="h3">Próximas entregas</Typography>
+                  <Typography variant="h3">Critérios responsivos</Typography>
                   <Typography color="text.secondary" sx={{ mt: 0.75 }}>
-                    A Fase 2 transforma essa base em componentes reutilizáveis.
+                    Padrões que todos os próximos formulários e listas devem respeitar.
                   </Typography>
                 </Box>
-                <Chip color="primary" label="Fase 1 pronta" />
+                <Chip color="primary" label="Fase 2" />
               </Stack>
               <List sx={{ mt: 1 }}>
                 {[
-                  "Conectar dashboard ao admin-get-condominium",
-                  "Criar formulários de condomínio, unidade e morador",
-                  "Adicionar tabelas responsivas e cards mobile",
-                  "Preparar autenticação do operador administrativo",
+                  "Sidebar fixa no desktop e drawer no mobile",
+                  "Tabelas no desktop com cards equivalentes no celular",
+                  "Formulários em uma coluna no celular",
+                  "Ações principais acessíveis por toque",
                 ].map((item) => (
                   <ListItem key={item} disableGutters>
                     <ListItemText primary={<Typography sx={{ fontWeight: 700 }}>{item}</Typography>} />
                   </ListItem>
                 ))}
               </List>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, lg: 5 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h3">Critérios responsivos</Typography>
-              <Stack spacing={1.25} sx={{ mt: 2 }}>
-                {[
-                  "Sidebar fixa no desktop e drawer no mobile",
-                  "Cards empilhados abaixo de tablet",
-                  "Formulários em uma coluna no celular",
-                  "Ações principais acessíveis por toque",
-                ].map((item) => (
-                  <Chip key={item} label={item} sx={{ justifyContent: "flex-start" }} />
-                ))}
-              </Stack>
             </CardContent>
           </Card>
         </Grid>

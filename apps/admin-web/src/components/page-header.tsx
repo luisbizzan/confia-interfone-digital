@@ -1,12 +1,15 @@
+"use client";
+
 import { Box, Button, Stack, Typography } from "@mui/material";
 
 type PageHeaderProps = {
   title: string;
   description: string;
   actionLabel?: string;
+  actionHref?: string;
 };
 
-export function PageHeader({ title, description, actionLabel }: PageHeaderProps) {
+export function PageHeader({ title, description, actionLabel, actionHref }: PageHeaderProps) {
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
@@ -23,7 +26,11 @@ export function PageHeader({ title, description, actionLabel }: PageHeaderProps)
           {description}
         </Typography>
       </Box>
-      {actionLabel && <Button variant="contained">{actionLabel}</Button>}
+      {actionLabel && (
+        <Button component={actionHref ? "a" : "button"} href={actionHref} variant="contained">
+          {actionLabel}
+        </Button>
+      )}
     </Stack>
   );
 }
