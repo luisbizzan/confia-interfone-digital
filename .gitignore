@@ -5,3 +5,4 @@
 .supabase/
 node_modules/
 supabase/.temp/
+.tmp-*
