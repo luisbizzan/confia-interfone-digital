@@ -19,6 +19,25 @@ npx supabase db push
 npx supabase functions deploy call-timeout-processor --no-verify-jwt
 ```
 
+## Backoffice Web
+
+O backoffice fica em `apps/admin-web`.
+
+```powershell
+npm install
+npm run admin:dev
+```
+
+Stack inicial:
+
+- Next.js
+- TypeScript
+- MUI
+- TanStack Query
+- Supabase JS
+- React Hook Form
+- Zod
+
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`

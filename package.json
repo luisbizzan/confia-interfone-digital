@@ -1,4 +1,13 @@
 {
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "admin:dev": "npm run dev --workspace admin-web",
+    "admin:build": "npm run build --workspace admin-web",
+    "admin:lint": "npm run lint --workspace admin-web"
+  },
   "devDependencies": {
     "supabase": "^2.98.2"
   }
