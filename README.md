@@ -18,3 +18,11 @@ npx supabase link --project-ref uvdwoisdcikzhqjwbhog
 npx supabase db push
 npx supabase functions deploy call-timeout-processor --no-verify-jwt
 ```
+
+## Fluxos Principais
+
+- Portaria para unidade: `start_portaria_call`
+- Unidade para portaria: `start_unit_to_portaria_call`
+- Morador atende chamada da unidade: `answer_call`
+- Portaria atende chamada recebida: `answer_portaria_call`
+- Scheduler de timeout: `call-timeout-processor` chamando `process_expired_calls`

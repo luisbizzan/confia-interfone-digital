@@ -41,7 +41,56 @@ O valor de `SUPABASE_CRON_SECRET` precisa ser igual ao valor de `CRON_SECRET`.
 
 ## Contrato inicial para o frontend
 
-- Iniciar chamada: `rpc/start_call` com `{ "p_unit_id": "<uuid>" }`
+- Portaria ligar para unidade: `rpc/start_portaria_call` com `{ "p_unit_id": "<uuid>" }`
+- Unidade ligar para portaria: `rpc/start_unit_to_portaria_call` com `{ "p_unit_id": "<uuid>" }`
 - Atender chamada: `rpc/answer_call` com `{ "p_call_id": "<uuid>", "p_user_id": "<auth.uid()>" }`
+- Portaria atender chamada recebida: `rpc/answer_portaria_call` com `{ "p_call_id": "<uuid>" }`
+- Compatibilidade temporaria: `rpc/start_call` chama internamente `start_portaria_call`.
 
 O frontend nao deve escrever diretamente em `calls` ou `call_attempts`.
+
+## Portaria
+
+Cada condominio deve ter pelo menos um usuario/dispositivo de portaria em `portaria_devices`.
+
+Esse usuario existe por tres motivos:
+
+- casas/unidades chamarem a portaria;
+- a portaria chamar casas/unidades;
+- ambas as pontas verem quem esta ligando.
+
+### Cadastro de condominio
+
+Ao cadastrar um condominio, o fluxo administrativo deve tambem cadastrar ou convidar o usuario da portaria.
+
+O backend espera:
+
+- usuario criado no Supabase Auth;
+- `user_profiles` vinculado ao `condominium_id` com role `PORTARIA`;
+- `portaria_devices` ativo para esse `user_id`.
+
+### Direcoes de chamada
+
+#### Portaria para unidade
+
+Use `start_portaria_call(p_unit_id)`.
+
+Regras:
+
+- `auth.uid()` precisa ter um `portaria_devices` ativo;
+- o dispositivo precisa ter `can_make_calls = true`;
+- a unidade precisa pertencer ao mesmo condominio;
+- a chamada nasce com `origin_type = PORTARIA` e `target_type = UNIT`;
+- o primeiro morador ativo da unidade recebe o primeiro `call_attempt`.
+
+#### Unidade para portaria
+
+Use `start_unit_to_portaria_call(p_unit_id)`.
+
+Regras:
+
+- `auth.uid()` precisa ser membro da unidade;
+- o membro precisa ter `can_make_calls = true`;
+- o backend escolhe o primeiro `portaria_devices` ativo do condominio;
+- a chamada nasce com `origin_type = UNIT` e `target_type = PORTARIA`;
+- chamadas para portaria nao criam `call_attempts` de morador.
