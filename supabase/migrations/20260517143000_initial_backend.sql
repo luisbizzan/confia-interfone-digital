@@ -101,6 +101,11 @@ create index if not exists idx_unit_members_unit_order on public.unit_members(un
 create index if not exists idx_calls_status_started_at on public.calls(status, started_at);
 create index if not exists idx_call_attempts_call_status on public.call_attempts(call_id, status);
 
+drop function if exists public.start_call(uuid);
+drop function if exists public.answer_call(uuid, uuid);
+drop function if exists public.process_call_timeout(uuid);
+drop function if exists public.process_expired_calls();
+
 create or replace function public.current_user_condominium_id()
 returns uuid
 language sql
@@ -331,77 +336,140 @@ alter table public.persons enable row level security;
 alter table public.person_phones enable row level security;
 alter table public.unit_contacts enable row level security;
 
-create policy "roles are readable by authenticated users"
-on public.roles for select
-to authenticated
-using (true);
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'roles'
+      and policyname = 'roles are readable by authenticated users'
+  ) then
+    create policy "roles are readable by authenticated users"
+    on public.roles for select
+    to authenticated
+    using (true);
+  end if;
 
-create policy "users read own condominium"
-on public.condominiums for select
-to authenticated
-using (id = public.current_user_condominium_id());
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'condominiums'
+      and policyname = 'users read own condominium'
+  ) then
+    create policy "users read own condominium"
+    on public.condominiums for select
+    to authenticated
+    using (id = public.current_user_condominium_id());
+  end if;
 
-create policy "users read units in condominium"
-on public.units for select
-to authenticated
-using (condominium_id = public.current_user_condominium_id());
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'units'
+      and policyname = 'users read units in condominium'
+  ) then
+    create policy "users read units in condominium"
+    on public.units for select
+    to authenticated
+    using (condominium_id = public.current_user_condominium_id());
+  end if;
 
-create policy "users read own profile"
-on public.user_profiles for select
-to authenticated
-using (id = auth.uid());
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'user_profiles'
+      and policyname = 'users read own profile'
+  ) then
+    create policy "users read own profile"
+    on public.user_profiles for select
+    to authenticated
+    using (id = auth.uid());
+  end if;
 
-create policy "users read unit members in condominium"
-on public.unit_members for select
-to authenticated
-using (condominium_id = public.current_user_condominium_id());
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'unit_members'
+      and policyname = 'users read unit members in condominium'
+  ) then
+    create policy "users read unit members in condominium"
+    on public.unit_members for select
+    to authenticated
+    using (condominium_id = public.current_user_condominium_id());
+  end if;
 
-create policy "users read calls in condominium"
-on public.calls for select
-to authenticated
-using (condominium_id = public.current_user_condominium_id());
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'calls'
+      and policyname = 'users read calls in condominium'
+  ) then
+    create policy "users read calls in condominium"
+    on public.calls for select
+    to authenticated
+    using (condominium_id = public.current_user_condominium_id());
+  end if;
 
-create policy "users read call attempts in condominium"
-on public.call_attempts for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.calls c
-    where c.id = call_attempts.call_id
-      and c.condominium_id = public.current_user_condominium_id()
-  )
-);
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'call_attempts'
+      and policyname = 'users read call attempts in condominium'
+  ) then
+    create policy "users read call attempts in condominium"
+    on public.call_attempts for select
+    to authenticated
+    using (
+      exists (
+        select 1
+        from public.calls c
+        where c.id = call_attempts.call_id
+          and c.condominium_id = public.current_user_condominium_id()
+      )
+    );
+  end if;
 
-create policy "users read persons through condominium units"
-on public.persons for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.units u
-    where u.id = persons.unit_id
-      and u.condominium_id = public.current_user_condominium_id()
-  )
-);
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'persons'
+      and policyname = 'users read persons through condominium units'
+  ) then
+    create policy "users read persons through condominium units"
+    on public.persons for select
+    to authenticated
+    using (
+      exists (
+        select 1
+        from public.units u
+        where u.id = persons.unit_id
+          and u.condominium_id = public.current_user_condominium_id()
+      )
+    );
+  end if;
 
-create policy "users read person phones through condominium units"
-on public.person_phones for select
-to authenticated
-using (
-  exists (
-    select 1
-    from public.persons p
-    join public.units u on u.id = p.unit_id
-    where p.id = person_phones.person_id
-      and u.condominium_id = public.current_user_condominium_id()
-  )
-);
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'person_phones'
+      and policyname = 'users read person phones through condominium units'
+  ) then
+    create policy "users read person phones through condominium units"
+    on public.person_phones for select
+    to authenticated
+    using (
+      exists (
+        select 1
+        from public.persons p
+        join public.units u on u.id = p.unit_id
+        where p.id = person_phones.person_id
+          and u.condominium_id = public.current_user_condominium_id()
+      )
+    );
+  end if;
 
-create policy "users read unit contacts in condominium"
-on public.unit_contacts for select
-to authenticated
-using (condominium_id = public.current_user_condominium_id());
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'public' and tablename = 'unit_contacts'
+      and policyname = 'users read unit contacts in condominium'
+  ) then
+    create policy "users read unit contacts in condominium"
+    on public.unit_contacts for select
+    to authenticated
+    using (condominium_id = public.current_user_condominium_id());
+  end if;
+end $$;
 
 revoke execute on function public.current_user_condominium_id() from public;
 revoke execute on function public.start_call(uuid) from public;

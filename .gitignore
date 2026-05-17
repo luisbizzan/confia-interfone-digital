@@ -3,3 +3,5 @@
 .env.*
 !.env.example
 .supabase/
+node_modules/
+supabase/.temp/
