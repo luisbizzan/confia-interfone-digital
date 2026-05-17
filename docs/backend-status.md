@@ -185,6 +185,34 @@ Resposta:
 }
 ```
 
+Use `admin-get-condominium` para consultar dados administrativos.
+
+Listar condominios:
+
+```text
+GET /functions/v1/admin-get-condominium
+```
+
+Obter visao completa de um condominio:
+
+```text
+GET /functions/v1/admin-get-condominium?condominium_id=<uuid>
+```
+
+Headers:
+
+```text
+x-admin-secret: <ADMIN_API_SECRET>
+```
+
+A resposta de detalhe inclui:
+
+- dados do condominio;
+- dispositivos de portaria;
+- unidades;
+- membros de cada unidade;
+- chamadas recentes.
+
 Resposta:
 
 ```json

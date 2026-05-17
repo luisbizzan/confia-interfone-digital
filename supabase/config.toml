@@ -45,3 +45,8 @@ entrypoint = "./functions/admin-create-condominium/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/admin-create-unit-member/index.ts"
+
+[functions.admin-get-condominium]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin-get-condominium/index.ts"
