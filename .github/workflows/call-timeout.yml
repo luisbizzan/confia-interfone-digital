@@ -12,7 +12,8 @@ jobs:
     steps:
       - name: Call Supabase Function
         run: |
-          curl -X POST \
+          curl --fail-with-body -X POST \
           https://uvdwoisdcikzhqjwbhog.supabase.co/functions/v1/call-timeout-processor \
           -H "Content-Type: application/json" \
+          -H "x-cron-secret: ${{ secrets.SUPABASE_CRON_SECRET }}" \
           -d '{}'
