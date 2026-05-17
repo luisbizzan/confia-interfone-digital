@@ -1,7 +1,17 @@
 import "server-only";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseUrl = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
 const adminSecret = process.env.ADMIN_API_SECRET;
+
+export class AdminEdgeError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AdminEdgeError";
+    this.status = status;
+  }
+}
 
 export type AdminEdgeRequestOptions = {
   path: string;
@@ -30,7 +40,7 @@ export async function adminEdgeRequest<T>({ path, init }: AdminEdgeRequestOption
   const payload = await response.json();
 
   if (!response.ok) {
-    throw new Error(payload?.error ?? "Admin API request failed");
+    throw new AdminEdgeError(payload?.error ?? "Admin API request failed", response.status);
   }
 
   return payload as T;

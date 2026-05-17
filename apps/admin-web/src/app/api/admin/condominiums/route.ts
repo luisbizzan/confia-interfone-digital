@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { AdminEdgeError } from "@/lib/admin-edge";
 import { listAdminCondominiums } from "@/lib/admin/condominiums";
 
 export async function GET() {
@@ -7,6 +8,7 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load condominiums";
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = error instanceof AdminEdgeError ? error.status : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

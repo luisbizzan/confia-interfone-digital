@@ -46,6 +46,14 @@ Base da Fase 2:
 - Rota server-side inicial: `/api/admin/condominiums`
 - Wrapper server-side para a Edge Function `admin-get-condominium`, mantendo `ADMIN_API_SECRET` fora do browser
 
+Base da Fase 3:
+
+- Tela real de condominios consumindo `/api/admin/condominiums`
+- Criacao de condominio via `/api/admin/condominiums/create`
+- Formulario de onboarding com usuario da portaria e dispositivo vinculado
+- Opcao de criar unidade padrao durante o cadastro
+- Tratamento de loading, erro e validacao sem expor `ADMIN_API_SECRET` no browser
+
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`

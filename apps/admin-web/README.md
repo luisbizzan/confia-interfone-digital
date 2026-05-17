@@ -34,3 +34,13 @@ A base reutilizavel do backoffice ja inclui:
 - Paginas iniciais para todos os modulos operacionais
 - Cards de metrica, estados vazios, chips de status e listas responsivas
 - Rota interna `/api/admin/condominiums` para chamar o backend sem expor segredo no browser
+
+## Fase 3
+
+A tela de condominios ja usa dados reais do backend:
+
+- Listagem pela rota interna `/api/admin/condominiums`
+- Criacao pela rota interna `/api/admin/condominiums/create`
+- Formulario com dados do condominio, email/senha da portaria e nome do dispositivo
+- Criacao opcional de unidade padrao
+- Status de carregamento, erro e validacao

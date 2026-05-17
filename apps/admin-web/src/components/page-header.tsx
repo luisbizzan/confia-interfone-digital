@@ -7,9 +7,10 @@ type PageHeaderProps = {
   description: string;
   actionLabel?: string;
   actionHref?: string;
+  onAction?: () => void;
 };
 
-export function PageHeader({ title, description, actionLabel, actionHref }: PageHeaderProps) {
+export function PageHeader({ title, description, actionLabel, actionHref, onAction }: PageHeaderProps) {
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
@@ -27,7 +28,7 @@ export function PageHeader({ title, description, actionLabel, actionHref }: Page
         </Typography>
       </Box>
       {actionLabel && (
-        <Button component={actionHref ? "a" : "button"} href={actionHref} variant="contained">
+        <Button component={actionHref ? "a" : "button"} href={actionHref} onClick={onAction} variant="contained">
           {actionLabel}
         </Button>
       )}

@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from "@/components/module-placeholder";
+import { CondominiumsPage } from "@/features/condominiums/condominiums-page";
 
 export default function CondominiosPage() {
-  return <ModulePlaceholder moduleId="condominios" />;
+  return <CondominiumsPage />;
 }
