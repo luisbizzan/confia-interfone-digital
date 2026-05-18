@@ -76,6 +76,15 @@ Base da Fase 6:
 - Checklist de fechamento MVP do backoffice
 - Validacao de ambiente sem expor segredos no browser
 
+Base da Fase 7:
+
+- Login do backoffice com sessao HttpOnly
+- Perfis `ADMIN` e `CONSULTOR` por `BACKOFFICE_USERS_JSON`
+- Middleware protegendo paginas e APIs internas
+- APIs administrativas validando sessao server-side
+- Criacao liberada para `ADMIN` e `CONSULTOR`; futuras exclusoes devem exigir `ADMIN`
+- Tela de Portaria com dispositivo, status e login do usuario usado no app modo portaria
+
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`

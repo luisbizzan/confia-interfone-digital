@@ -7,6 +7,7 @@ import HistoryIcon from "@mui/icons-material/History";
 import HomeWorkIcon from "@mui/icons-material/HomeWork";
 import MenuIcon from "@mui/icons-material/Menu";
 import PeopleIcon from "@mui/icons-material/People";
+import SecurityIcon from "@mui/icons-material/Security";
 import SettingsIcon from "@mui/icons-material/Settings";
 import {
   AppBar,
@@ -24,7 +25,7 @@ import {
   Typography,
 } from "@mui/material";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const drawerWidth = 272;
 
@@ -33,6 +34,7 @@ const navItems = [
   { label: "Condomínios", icon: <ApartmentIcon />, href: "/condominios" },
   { label: "Unidades", icon: <HomeWorkIcon />, href: "/unidades" },
   { label: "Moradores", icon: <PeopleIcon />, href: "/moradores" },
+  { label: "Portaria", icon: <SecurityIcon />, href: "/portaria" },
   { label: "Chamadas", icon: <CallIcon />, href: "/chamadas" },
   { label: "Auditoria", icon: <HistoryIcon />, href: "/auditoria" },
   { label: "Configurações", icon: <SettingsIcon />, href: "/configuracoes" },
@@ -40,7 +42,30 @@ const navItems = [
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userLabel, setUserLabel] = useState("Backoffice");
   const pathname = usePathname();
+
+  useEffect(() => {
+    let mounted = true;
+
+    fetch("/api/auth/me")
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (mounted && payload) {
+          setUserLabel(`${payload.name} · ${payload.role}`);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
 
   const drawer = (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -83,7 +108,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </List>
       <Box sx={{ flexGrow: 1 }} />
       <Box sx={{ p: 2 }}>
-        <Button fullWidth variant="outlined">
+        <Button fullWidth onClick={handleLogout} variant="outlined">
           Sair
         </Button>
       </Box>
@@ -117,7 +142,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               Backoffice Confia
             </Typography>
             <Typography noWrap color="text.secondary" variant="caption">
-              Gestão operacional de condomínios e chamadas
+              {userLabel}
             </Typography>
           </Box>
         </Toolbar>

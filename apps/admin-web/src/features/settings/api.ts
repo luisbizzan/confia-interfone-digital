@@ -4,6 +4,8 @@ export type AdminHealth = {
     supabaseUrl: boolean;
     adminSecret: boolean;
     publicAnonKey: boolean;
+    backofficeUsers: boolean;
+    sessionSecret: boolean;
   };
   condominiums_count?: number;
   error?: string;

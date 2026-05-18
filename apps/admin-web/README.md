@@ -25,6 +25,8 @@ Copie `.env.example` para `.env.local` e preencha:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `ADMIN_API_SECRET`
+- `BACKOFFICE_SESSION_SECRET`
+- `BACKOFFICE_USERS_JSON`
 
 ## Fase 2
 
@@ -69,3 +71,14 @@ Fechamento MVP do backoffice:
 - Auditoria MVP baseada nas chamadas recentes
 - Health check administrativo em `/api/admin/health`
 - Checklist de configuracao e prontidao
+
+## Fase 7
+
+Seguranca e operacao real:
+
+- Login em `/login`
+- Sessao HttpOnly assinada no servidor
+- Perfis `ADMIN` e `CONSULTOR`
+- Middleware protegendo paginas e APIs
+- Rotas `/api/admin/*` exigindo sessao valida
+- Tela `/portaria` mostrando o login/dispositivo da portaria por condominio

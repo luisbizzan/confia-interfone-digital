@@ -14,8 +14,10 @@ import { fetchAdminHealth } from "./api";
 const rolloutItems = [
   "Condomínios com usuário e dispositivo de portaria",
   "Unidades com moradores e regras de chamada",
+  "Portaria visível no backoffice para apoiar login no app",
   "Chamadas recentes com atualização operacional",
   "Auditoria MVP baseada em chamadas recentes",
+  "Login protegido com perfis ADMIN e CONSULTOR",
   "Segredos administrativos isolados em rotas server-side",
 ];
 
@@ -29,6 +31,8 @@ export function SettingsPage() {
     { label: "URL do Supabase", ok: healthQuery.data?.checks.supabaseUrl },
     { label: "Segredo administrativo", ok: healthQuery.data?.checks.adminSecret },
     { label: "Chave pública do Supabase", ok: healthQuery.data?.checks.publicAnonKey },
+    { label: "Usuários do backoffice", ok: healthQuery.data?.checks.backofficeUsers },
+    { label: "Segredo de sessão", ok: healthQuery.data?.checks.sessionSecret },
   ];
 
   return (
@@ -51,7 +55,10 @@ export function SettingsPage() {
                 <CardContent>
                   <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}>
                     <Typography variant="h3">Saúde do ambiente</Typography>
-                    <StatusChip label={healthQuery.data.ok ? "Operacional" : "Atenção"} tone={healthQuery.data.ok ? "success" : "warning"} />
+                    <StatusChip
+                      label={healthQuery.data.ok ? "Operacional" : "Atenção"}
+                      tone={healthQuery.data.ok ? "success" : "warning"}
+                    />
                   </Stack>
                   <List>
                     {checks.map((check) => (

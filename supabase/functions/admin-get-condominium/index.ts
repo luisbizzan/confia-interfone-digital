@@ -42,6 +42,10 @@ Deno.serve(async (req) => {
     return json({ error: "Failed to load admin condominium data", details: responseBody }, response.status)
   }
 
+  if (condominiumId) {
+    return json(await enrichPortariaUsers(supabaseUrl, serviceRoleKey, responseBody))
+  }
+
   return json(responseBody)
 })
 
@@ -61,6 +65,39 @@ async function readJson(response: Response) {
     return JSON.parse(text)
   } catch {
     return { raw: text }
+  }
+}
+
+async function enrichPortariaUsers(supabaseUrl: string, serviceRoleKey: string, overview: any) {
+  if (!Array.isArray(overview?.portaria_devices)) {
+    return overview
+  }
+
+  const devices = await Promise.all(
+    overview.portaria_devices.map(async (device: any) => {
+      if (!device?.user_id) return device
+
+      const userResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users/${device.user_id}`, {
+        method: "GET",
+        headers: serviceHeaders(serviceRoleKey),
+      })
+
+      if (!userResponse.ok) {
+        return device
+      }
+
+      const user = await readJson(userResponse)
+
+      return {
+        ...device,
+        user_email: user.email ?? null,
+      }
+    }),
+  )
+
+  return {
+    ...overview,
+    portaria_devices: devices,
   }
 }
 

@@ -62,6 +62,7 @@ export type AdminCondominiumOverview = {
   portaria_devices?: {
     id: string;
     user_id: string;
+    user_email?: string | null;
     name: string;
     is_active: boolean;
     can_receive_calls: boolean;
