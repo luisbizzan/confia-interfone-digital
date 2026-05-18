@@ -1,5 +1,5 @@
-import { ModulePlaceholder } from "@/components/module-placeholder";
+import { SettingsPage } from "@/features/settings/settings-page";
 
 export default function ConfiguracoesPage() {
-  return <ModulePlaceholder moduleId="configuracoes" />;
+  return <SettingsPage />;
 }

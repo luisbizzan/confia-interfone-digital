@@ -62,6 +62,20 @@ Base da Fase 4:
 - Vinculo de morador a unidade existente ou criacao de nova unidade no mesmo formulario
 - Configuracoes iniciais de chamada: ativo, recebe chamadas, liga para portaria e ordem
 
+Base da Fase 5:
+
+- Tela real de chamadas por condominio usando `recent_calls`
+- Metricas operacionais: recentes, tocando, atendidas e perdidas
+- Historico recente com fluxo, unidade, status e data
+- Atualizacao automatica da tela de chamadas a cada 20 segundos
+
+Base da Fase 6:
+
+- Tela de auditoria MVP com eventos operacionais derivados das chamadas recentes
+- Tela de configuracoes com health check administrativo em `/api/admin/health`
+- Checklist de fechamento MVP do backoffice
+- Validacao de ambiente sem expor segredos no browser
+
 ## Fluxos Principais
 
 - Edge Function administrativa: `admin-create-condominium`

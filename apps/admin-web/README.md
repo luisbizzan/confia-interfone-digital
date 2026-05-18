@@ -53,3 +53,19 @@ Unidades e moradores ja usam dados reais do backend:
 - Criacao de unidade e morador pela rota `/api/admin/unit-members/create`
 - Dialog compartilhado para criar nova unidade ou vincular morador a unidade existente
 - Configuracao inicial de chamada do morador
+
+## Fase 5
+
+Chamadas ja possui visao operacional:
+
+- Listagem por condominio usando `recent_calls`
+- Metricas de chamadas recentes, tocando, atendidas e perdidas
+- Atualizacao automatica a cada 20 segundos
+
+## Fase 6
+
+Fechamento MVP do backoffice:
+
+- Auditoria MVP baseada nas chamadas recentes
+- Health check administrativo em `/api/admin/health`
+- Checklist de configuracao e prontidao
