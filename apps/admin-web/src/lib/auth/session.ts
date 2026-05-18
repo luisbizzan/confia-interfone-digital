@@ -12,6 +12,16 @@ export type BackofficeSession = {
   expiresAt: number;
 };
 
+export class BackofficeAuthError extends Error {
+  status: 401 | 403;
+
+  constructor(message: string, status: 401 | 403) {
+    super(message);
+    this.name = "BackofficeAuthError";
+    this.status = status;
+  }
+}
+
 type BackofficeUser = {
   email: string;
   password: string;
@@ -117,7 +127,7 @@ export async function requireBackofficeSession() {
   const session = await getBackofficeSession();
 
   if (!session) {
-    throw new Error("Unauthorized");
+    throw new BackofficeAuthError("Sessão expirada ou ausente", 401);
   }
 
   return session;
@@ -127,7 +137,7 @@ export async function requireBackofficeRole(roles: BackofficeRole[]) {
   const session = await requireBackofficeSession();
 
   if (!roles.includes(session.role)) {
-    throw new Error("Forbidden");
+    throw new BackofficeAuthError("Acesso negado para este perfil", 403);
   }
 
   return session;
