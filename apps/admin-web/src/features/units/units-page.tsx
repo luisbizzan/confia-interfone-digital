@@ -94,36 +94,40 @@ export function UnitsPage() {
         {overviewQuery.data && (
           <ResponsiveRecordList
             columns={[
-              {
-                key: "unit",
-                header: "Unidade",
+                {
+                  key: "unit",
+                  header: "Unidade",
                 render: (unit) => (
                   <Typography sx={{ fontWeight: 700 }}>
                     {unit.block ? `${unit.block} - ` : ""}
                     {unit.number}
                   </Typography>
                 ),
-              },
-              {
-                key: "type",
-                header: "Tipo",
-                render: (unit) => (unit.type === "HOUSE" ? "Casa" : "Apartamento"),
-              },
-              {
-                key: "members",
-                header: "Moradores",
-                render: (unit) => unit.members.length,
-              },
-              {
-                key: "status",
-                header: "Chamadas",
+                  tableSx: { width: "24%" },
+                },
+                {
+                  key: "type",
+                  header: "Tipo",
+                  render: (unit) => (unit.type === "HOUSE" ? "Casa" : "Apartamento"),
+                  tableSx: { width: "22%" },
+                },
+                {
+                  key: "members",
+                  header: "Moradores",
+                  render: (unit) => unit.members.length,
+                  tableSx: { width: "16%" },
+                },
+                {
+                  key: "status",
+                  header: "Chamadas",
                 render: (unit) => (
                   <StatusChip
                     label={unit.members.some((member) => member.active_for_calls) ? "Ativa" : "Sem morador ativo"}
-                    tone={unit.members.some((member) => member.active_for_calls) ? "success" : "warning"}
-                  />
-                ),
-              },
+                      tone={unit.members.some((member) => member.active_for_calls) ? "success" : "warning"}
+                    />
+                  ),
+                  tableSx: { width: "20%" },
+                },
               {
                 key: "created",
                 header: "Criada em",

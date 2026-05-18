@@ -140,16 +140,19 @@ export function CondominiumsPage() {
                   key: "name",
                   header: "Condomínio",
                   render: (item) => <Typography sx={{ fontWeight: 700 }}>{item.name}</Typography>,
+                  tableSx: { width: "36%" },
                 },
                 {
                   key: "document",
                   header: "Documento",
                   render: (item) => item.document || "-",
+                  tableSx: { width: "28%" },
                 },
                 {
                   key: "units",
                   header: "Unidades",
                   render: (item) => item.unit_count ?? 0,
+                  tableSx: { width: "14%" },
                 },
                 {
                   key: "portaria",
@@ -160,6 +163,7 @@ export function CondominiumsPage() {
                       tone={(item.portaria_device_count ?? 0) > 0 ? "success" : "warning"}
                     />
                   ),
+                  tableSx: { width: "22%" },
                 },
                 {
                   key: "created",

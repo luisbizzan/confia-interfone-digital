@@ -100,16 +100,19 @@ export function CallsPage() {
                       {callDirectionLabel(call.origin_type, call.target_type)}
                     </Typography>
                   ),
+                  tableSx: { width: "34%" },
                 },
                 {
                   key: "unit",
                   header: "Unidade",
                   render: (call) => call.unit_id?.slice(0, 8) ?? "-",
+                  tableSx: { width: "20%" },
                 },
                 {
                   key: "status",
                   header: "Status",
                   render: (call) => <StatusChip label={callStatusLabel(call.status)} tone={callStatusTone(call.status)} />,
+                  tableSx: { width: "20%" },
                 },
                 {
                   key: "created",

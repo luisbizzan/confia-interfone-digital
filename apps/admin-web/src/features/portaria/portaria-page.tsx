@@ -70,33 +70,38 @@ export function PortariaPage() {
         {overviewQuery.data && (
           <ResponsiveRecordList
             columns={[
-              {
-                key: "name",
-                header: "Dispositivo",
-                render: (device) => <Typography sx={{ fontWeight: 700 }}>{device.name}</Typography>,
-              },
-              {
-                key: "user",
-                header: "Login app",
-                render: (device) => device.user_email ?? `ID ${shortId(device.user_id)}`,
-              },
-              {
-                key: "active",
+                {
+                  key: "name",
+                  header: "Dispositivo",
+                  render: (device) => <Typography sx={{ fontWeight: 700 }}>{device.name}</Typography>,
+                  tableSx: { width: "20%" },
+                },
+                {
+                  key: "user",
+                  header: "Login app",
+                  render: (device) => device.user_email ?? `ID ${shortId(device.user_id)}`,
+                  tableSx: { width: "38%" },
+                },
+                {
+                  key: "active",
                 header: "Status",
-                render: (device) => (
-                  <StatusChip label={device.is_active ? "Ativo" : "Inativo"} tone={device.is_active ? "success" : "warning"} />
-                ),
-              },
-              {
-                key: "receive",
-                header: "Recebe",
-                render: (device) => (device.can_receive_calls ? "Sim" : "Não"),
-              },
-              {
-                key: "make",
-                header: "Liga",
-                render: (device) => (device.can_make_calls ? "Sim" : "Não"),
-              },
+                  render: (device) => (
+                    <StatusChip label={device.is_active ? "Ativo" : "Inativo"} tone={device.is_active ? "success" : "warning"} />
+                  ),
+                  tableSx: { width: "14%" },
+                },
+                {
+                  key: "receive",
+                  header: "Recebe",
+                  render: (device) => (device.can_receive_calls ? "Sim" : "Não"),
+                  tableSx: { width: "12%" },
+                },
+                {
+                  key: "make",
+                  header: "Liga",
+                  render: (device) => (device.can_make_calls ? "Sim" : "Não"),
+                  tableSx: { width: "10%" },
+                },
               {
                 key: "created",
                 header: "Criado em",

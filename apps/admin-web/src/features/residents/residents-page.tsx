@@ -106,38 +106,43 @@ export function ResidentsPage() {
         {overviewQuery.data && (
           <ResponsiveRecordList
             columns={[
-              {
-                key: "resident",
-                header: "Morador",
-                render: (resident) => (
-                  <Typography sx={{ fontWeight: 700 }}>Usuário {shortId(resident.user_id)}</Typography>
-                ),
-              },
-              {
-                key: "unit",
-                header: "Unidade",
-                render: (resident) => resident.unit_label,
-              },
-              {
-                key: "order",
-                header: "Ordem",
-                render: (resident) => resident.call_order,
-              },
-              {
-                key: "receive",
-                header: "Recebe",
+                {
+                  key: "resident",
+                  header: "Morador",
+                  render: (resident) => (
+                    <Typography sx={{ fontWeight: 700 }}>Usuário {shortId(resident.user_id)}</Typography>
+                  ),
+                  tableSx: { width: "24%" },
+                },
+                {
+                  key: "unit",
+                  header: "Unidade",
+                  render: (resident) => resident.unit_label,
+                  tableSx: { width: "18%" },
+                },
+                {
+                  key: "order",
+                  header: "Ordem",
+                  render: (resident) => resident.call_order,
+                  tableSx: { width: "12%" },
+                },
+                {
+                  key: "receive",
+                  header: "Recebe",
                 render: (resident) => (
                   <StatusChip
                     label={resident.active_for_calls && resident.can_receive_calls ? "Sim" : "Não"}
-                    tone={resident.active_for_calls && resident.can_receive_calls ? "success" : "warning"}
-                  />
-                ),
-              },
-              {
-                key: "make",
-                header: "Liga",
-                render: (resident) => (resident.can_make_calls ? "Sim" : "Não"),
-              },
+                      tone={resident.active_for_calls && resident.can_receive_calls ? "success" : "warning"}
+                    />
+                  ),
+                  tableSx: { width: "16%" },
+                },
+                {
+                  key: "make",
+                  header: "Liga",
+                  render: (resident) => (resident.can_make_calls ? "Sim" : "Não"),
+                  tableSx: { width: "12%" },
+                },
               {
                 key: "created",
                 header: "Criado em",

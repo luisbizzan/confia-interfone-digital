@@ -19,6 +19,7 @@ export type ResponsiveColumn<T> = {
   header: string;
   render: (item: T) => ReactNode;
   hideOnMobile?: boolean;
+  tableSx?: object;
 };
 
 type ResponsiveRecordListProps<T> = {
@@ -52,12 +53,14 @@ export function ResponsiveRecordList<T>({
           {description && <Typography color="text.secondary">{description}</Typography>}
         </Stack>
 
-        <Box sx={{ display: { xs: "none", md: "block" }, overflowX: "auto" }}>
-          <Table sx={{ minWidth: 720 }}>
+        <Box sx={{ display: { xs: "none", lg: "block" } }}>
+          <Table sx={{ tableLayout: "fixed", width: "100%" }}>
             <TableHead>
               <TableRow>
                 {columns.map((column) => (
-                  <TableCell key={column.key}>{column.header}</TableCell>
+                  <TableCell key={column.key} sx={column.tableSx}>
+                    {column.header}
+                  </TableCell>
                 ))}
               </TableRow>
             </TableHead>
@@ -65,7 +68,16 @@ export function ResponsiveRecordList<T>({
               {items.map((item) => (
                 <TableRow key={getKey(item)} hover>
                   {columns.map((column) => (
-                    <TableCell key={column.key}>{column.render(item)}</TableCell>
+                    <TableCell
+                      key={column.key}
+                      sx={{
+                        overflowWrap: "anywhere",
+                        verticalAlign: "top",
+                        ...column.tableSx,
+                      }}
+                    >
+                      {column.render(item)}
+                    </TableCell>
                   ))}
                 </TableRow>
               ))}
@@ -73,7 +85,7 @@ export function ResponsiveRecordList<T>({
           </Table>
         </Box>
 
-        <Stack spacing={1.5} sx={{ display: { xs: "flex", md: "none" } }}>
+        <Stack spacing={1.5} sx={{ display: { xs: "flex", lg: "none" } }}>
           {items.map((item) => (
             <Card key={getKey(item)} variant="outlined">
               <CardContent>
