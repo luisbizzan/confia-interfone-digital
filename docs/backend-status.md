@@ -309,6 +309,14 @@ Regras:
 - a chamada nasce com `origin_type = UNIT` e `target_type = PORTARIA`;
 - chamadas para portaria nao criam `call_attempts` de morador.
 
+### Chamada atendida e encerramento
+
+Ao atender uma chamada, `answer_call` ou `answer_portaria_call` muda o status para `ANSWERED`, preenche `answered_at` e mantem `ended_at = null`.
+
+Isso representa uma chamada em andamento no app.
+
+Para finalizar o ciclo, o app deve chamar `end_call(p_call_id, p_reason)`, que preenche `ended_at` e registra `CALL_ENDED`.
+
 #### Unidade para unidade
 
 Use `start_unit_to_unit_call(p_origin_unit_id, p_target_unit_id)`.
