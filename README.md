@@ -93,6 +93,7 @@ Base da Fase 7:
 - Onboarding administrativo: `admin_create_condominium_with_portaria`
 - Portaria para unidade: `start_portaria_call`
 - Unidade para portaria: `start_unit_to_portaria_call`
+- Unidade para unidade: `start_unit_to_unit_call`
 - Morador atende chamada da unidade: `answer_call`
 - Portaria atende chamada recebida: `answer_portaria_call`
 - Cancelar chamada: `cancel_call`

@@ -44,6 +44,7 @@ O valor de `SUPABASE_CRON_SECRET` precisa ser igual ao valor de `CRON_SECRET`.
 
 - Portaria ligar para unidade: `rpc/start_portaria_call` com `{ "p_unit_id": "<uuid>" }`
 - Unidade ligar para portaria: `rpc/start_unit_to_portaria_call` com `{ "p_unit_id": "<uuid>" }`
+- Unidade ligar para outra unidade do mesmo condominio: `rpc/start_unit_to_unit_call` com `{ "p_origin_unit_id": "<uuid>", "p_target_unit_id": "<uuid>" }`
 - Atender chamada: `rpc/answer_call` com `{ "p_call_id": "<uuid>", "p_user_id": "<auth.uid()>" }`
 - Portaria atender chamada recebida: `rpc/answer_portaria_call` com `{ "p_call_id": "<uuid>" }`
 - Cancelar chamada em andamento: `rpc/cancel_call` com `{ "p_call_id": "<uuid>", "p_reason": "opcional" }`
@@ -267,7 +268,7 @@ Tabelas sensiveis nao devem receber `insert`, `update` ou `delete` diretamente d
 
 Escritas de negócio devem passar por RPCs ou Edge Functions:
 
-- chamadas: `start_portaria_call`, `start_unit_to_portaria_call`, `answer_call`, `answer_portaria_call`, `cancel_call`, `end_call`;
+- chamadas: `start_portaria_call`, `start_unit_to_portaria_call`, `start_unit_to_unit_call`, `answer_call`, `answer_portaria_call`, `cancel_call`, `end_call`;
 - administracao: Edge Functions com `x-admin-secret`;
 - timeout: Edge Function `call-timeout-processor` com `x-cron-secret`.
 
@@ -307,3 +308,17 @@ Regras:
 - o backend escolhe o primeiro `portaria_devices` ativo do condominio;
 - a chamada nasce com `origin_type = UNIT` e `target_type = PORTARIA`;
 - chamadas para portaria nao criam `call_attempts` de morador.
+
+#### Unidade para unidade
+
+Use `start_unit_to_unit_call(p_origin_unit_id, p_target_unit_id)`.
+
+Regras:
+
+- `auth.uid()` precisa ser membro ativo da unidade de origem;
+- o membro da origem precisa ter `can_make_calls = true`;
+- origem e destino precisam pertencer ao mesmo condominio;
+- origem e destino nao podem ser a mesma unidade;
+- a unidade de destino precisa ter pelo menos um morador ativo com `can_receive_calls = true`;
+- a chamada nasce com `origin_type = UNIT`, `origin_unit_id = origem`, `target_type = UNIT` e `unit_id = destino`;
+- o primeiro morador ativo da unidade de destino recebe o primeiro `call_attempt`.
