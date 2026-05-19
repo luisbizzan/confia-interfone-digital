@@ -330,3 +330,25 @@ Regras:
 - a unidade de destino precisa ter pelo menos um morador ativo com `can_receive_calls = true`;
 - a chamada nasce com `origin_type = UNIT`, `origin_unit_id = origem`, `target_type = UNIT` e `unit_id = destino`;
 - o primeiro morador ativo da unidade de destino recebe o primeiro `call_attempt`.
+
+### Ordem de chamada dos moradores da unidade
+
+Chamadas com destino `UNIT` seguem a ordem operacional dos moradores cadastrados em `unit_members.call_order`.
+
+Fluxo:
+
+- `start_portaria_call` e `start_unit_to_unit_call` escolhem o primeiro morador ativo da unidade de destino;
+- o morador precisa ter `active_for_calls = true` e `can_receive_calls = true`;
+- a ordenacao usada e `call_order asc, created_at asc`;
+- o backend cria um registro em `call_attempts` com `status = RINGING` para esse morador;
+- se a tentativa nao for atendida no tempo limite, `process_expired_calls()` chama `process_call_timeout(p_call_id)`;
+- a tentativa atual passa para `NO_ANSWER`;
+- o backend procura o proximo morador ativo com `call_order > attempt_order`;
+- se encontrar, cria um novo `call_attempt` com `status = RINGING`;
+- se nao encontrar outro morador apto, a chamada passa para `MISSED`.
+
+Cuidados:
+
+- moradores da mesma unidade devem ter `call_order` diferentes para garantir a cascata corretamente;
+- se dois moradores tiverem o mesmo `call_order`, o primeiro toque usa `created_at` como desempate, mas o timeout procura apenas ordens maiores;
+- por isso o backoffice deve manter a ordem de chamada explicita e sem duplicidade dentro da unidade.
