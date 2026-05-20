@@ -271,6 +271,7 @@ Escritas de negócio devem passar por RPCs ou Edge Functions:
 - chamadas: `start_portaria_call`, `start_unit_to_portaria_call`, `start_unit_to_unit_call`, `answer_call`, `answer_portaria_call`, `cancel_call`, `end_call`;
 - administracao: Edge Functions com `x-admin-secret`;
 - timeout: Edge Function `call-timeout-processor` com `x-cron-secret`.
+- voz: Edge Function `livekit-token` gera token temporario para a sala LiveKit da chamada ativa.
 
 Resposta:
 
@@ -352,3 +353,36 @@ Cuidados:
 - moradores da mesma unidade devem ter `call_order` diferentes para garantir a cascata corretamente;
 - se dois moradores tiverem o mesmo `call_order`, o primeiro toque usa `created_at` como desempate, mas o timeout procura apenas ordens maiores;
 - por isso o backoffice deve manter a ordem de chamada explicita e sem duplicidade dentro da unidade.
+
+### Voz real com LiveKit
+
+Provedor escolhido para a Fase 2 do app: LiveKit Cloud.
+
+Edge Function:
+
+- `livekit-token`
+
+Variaveis secretas exigidas no Supabase:
+
+- `LIVEKIT_URL`
+- `LIVEKIT_API_KEY`
+- `LIVEKIT_API_SECRET`
+
+Regras:
+
+- o app nunca recebe `LIVEKIT_API_SECRET`;
+- o app envia apenas o `call_id` da chamada em andamento;
+- a chamada precisa estar com `status = ANSWERED` e `ended_at = null`;
+- o usuario logado precisa participar da chamada como morador da unidade de origem/destino ou como dispositivo de portaria vinculado;
+- o backend gera uma sala com nome `confia-call-<call_id>`;
+- o token expira em 30 minutos;
+- o token permite entrar na sala, publicar microfone, publicar dados e assinar audio remoto.
+
+Fluxo previsto:
+
+1. chamada transacional e criada no backend;
+2. destino atende a chamada;
+3. chamada passa para `ANSWERED`;
+4. app solicita `livekit-token`;
+5. app entra na sala LiveKit;
+6. ao encerrar, app chama `end_call` e sai da sala.
