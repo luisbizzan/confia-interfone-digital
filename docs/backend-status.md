@@ -308,9 +308,21 @@ Fase 1 implementada para operacao semi-autonoma:
 
 Fase 2 prevista:
 
-- criar Edge Function para deduplicar relatorios;
-- abrir ou atualizar issue no GitHub com stacktrace e contexto tecnico;
-- aplicar rate limit e sanitizacao adicional antes de enviar dados ao GitHub.
+- Edge Function `report-app-error`;
+- app envia relatorios para a Edge Function, nao diretamente ao GitHub;
+- funcao autentica o usuario pelo JWT do Supabase;
+- funcao grava o relatorio em `app_error_reports` usando `service_role`;
+- funcao gera `signature` SHA-256 do erro para deduplicacao;
+- ocorrencias repetidas reaproveitam a issue existente e atualizam `occurrence_count`;
+- quando os secrets `GITHUB_TOKEN` e `GITHUB_REPOSITORY` estiverem configurados, a funcao cria uma issue no GitHub com stacktrace e contexto tecnico;
+- se os secrets do GitHub nao existirem, o erro continua sendo registrado no Supabase e a resposta marca `github.status = skipped`;
+- a funcao aplica sanitizacao adicional antes de gravar e antes de enviar dados ao GitHub.
+
+Secrets opcionais para abrir issues:
+
+- `GITHUB_TOKEN`: token com permissao para criar issues no repositorio escolhido;
+- `GITHUB_REPOSITORY`: repositorio no formato `owner/repo`, por exemplo `luisbizzan/confia-interfone-app`;
+- `GITHUB_ERROR_LABELS`: lista opcional de labels separadas por virgula. Padrao: `app-error,auto-report`.
 
 Resposta:
 
