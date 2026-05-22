@@ -9,6 +9,7 @@ type Payload = {
   portaria_email?: string
   portaria_password?: string
   portaria_device_name?: string | null
+  intercom_enabled?: boolean
   create_default_unit?: boolean
   default_unit_type?: string | null
   default_unit_block?: string | null
@@ -77,6 +78,7 @@ Deno.serve(async (req) => {
       p_condominium_document: payload.condominium_document ?? null,
       p_portaria_user_id: authUserBody.id,
       p_portaria_device_name: payload.portaria_device_name ?? "Portaria",
+      p_intercom_enabled: payload.intercom_enabled ?? true,
       p_create_default_unit: payload.create_default_unit ?? false,
       p_default_unit_type: payload.default_unit_type ?? "APARTMENT",
       p_default_unit_block: payload.default_unit_block ?? null,

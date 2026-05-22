@@ -87,6 +87,7 @@ Contrato:
   "p_condominium_document": "00.000.000/0000-00",
   "p_portaria_user_id": "<auth.users.id>",
   "p_portaria_device_name": "Portaria Principal",
+  "p_intercom_enabled": true,
   "p_create_default_unit": false,
   "p_default_unit_type": "APARTMENT",
   "p_default_unit_block": "A",
@@ -127,6 +128,7 @@ Body:
   "portaria_email": "portaria@example.com",
   "portaria_password": "senha-inicial-forte",
   "portaria_device_name": "Portaria Principal",
+  "intercom_enabled": true,
   "create_default_unit": true,
   "default_unit_type": "APARTMENT",
   "default_unit_block": "A",
@@ -211,10 +213,30 @@ x-admin-secret: <ADMIN_API_SECRET>
 A resposta de detalhe inclui:
 
 - dados do condominio;
+- recursos contratados em `condominium.features`;
 - dispositivos de portaria;
 - unidades;
 - membros de cada unidade;
 - chamadas recentes.
+
+## Recursos por condominio
+
+O backend passa a controlar recursos contratados por condominio na tabela `condominium_features`.
+
+Recurso inicial:
+
+- `INTERCOM`: habilita o Interfone Digital no app e libera a criacao de chamadas.
+
+Regras:
+
+- condominios existentes recebem `INTERCOM = true` por compatibilidade;
+- condominios novos recebem o valor enviado pelo backoffice em `intercom_enabled`;
+- `get_current_user_context()` retorna `features`, por exemplo `{ "INTERCOM": true }`;
+- o app deve esconder ou bloquear atalhos de recursos quando o valor vier `false`;
+- o banco bloqueia `insert` em `calls` quando `INTERCOM` estiver desabilitado para o condominio;
+- `admin-list` e `admin-get-condominium` retornam o mapa de recursos para conferencias administrativas.
+
+Esse modelo permite vender funcionalidades por pacote ou individualmente, mantendo o controle centralizado no backend.
 
 ## Auditoria de chamadas
 

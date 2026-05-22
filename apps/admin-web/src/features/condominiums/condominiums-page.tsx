@@ -41,6 +41,7 @@ const condominiumSchema = z
     portaria_email: z.string().trim().email("Informe um email válido para a portaria"),
     portaria_password: z.string().min(8, "A senha precisa ter pelo menos 8 caracteres"),
     portaria_device_name: z.string().trim().optional(),
+    intercom_enabled: z.boolean(),
     create_default_unit: z.boolean(),
     default_unit_type: z.string().trim().optional(),
     default_unit_block: z.string().trim().optional(),
@@ -64,6 +65,7 @@ const defaultValues: CondominiumFormValues = {
   portaria_email: "",
   portaria_password: "",
   portaria_device_name: "Portaria",
+  intercom_enabled: true,
   create_default_unit: false,
   default_unit_type: "APARTMENT",
   default_unit_block: "",
@@ -102,6 +104,7 @@ export function CondominiumsPage() {
       portaria_email: values.portaria_email.trim(),
       portaria_password: values.portaria_password,
       portaria_device_name: values.portaria_device_name?.trim() || "Portaria",
+      intercom_enabled: values.intercom_enabled,
       create_default_unit: values.create_default_unit,
       default_unit_type: values.default_unit_type || "APARTMENT",
       default_unit_block: values.default_unit_block?.trim() || null,
@@ -164,6 +167,17 @@ export function CondominiumsPage() {
                     />
                   ),
                   tableSx: { width: "22%" },
+                },
+                {
+                  key: "features",
+                  header: "Interfone",
+                  render: (item) => (
+                    <StatusChip
+                      label={item.features?.INTERCOM === false ? "Desabilitado" : "Habilitado"}
+                      tone={item.features?.INTERCOM === false ? "warning" : "success"}
+                    />
+                  ),
+                  hideOnMobile: true,
                 },
                 {
                   key: "created",
@@ -253,6 +267,31 @@ export function CondominiumsPage() {
                 />
               </Grid>
             </Grid>
+
+            <Stack
+              spacing={2}
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                p: 2,
+              }}
+            >
+              <Controller
+                control={form.control}
+                name="intercom_enabled"
+                render={({ field }) => (
+                  <FormControlLabel
+                    control={<Checkbox checked={field.value} onChange={(event) => field.onChange(event.target.checked)} />}
+                    label="Habilitar Interfone Digital neste condomínio"
+                  />
+                )}
+              />
+
+              <Typography color="text.secondary" variant="body2">
+                Os recursos contratados controlam os atalhos disponíveis no aplicativo.
+              </Typography>
+            </Stack>
 
             <Stack
               spacing={2}

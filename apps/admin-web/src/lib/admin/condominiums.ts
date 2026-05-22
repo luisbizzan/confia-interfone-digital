@@ -7,6 +7,7 @@ export type AdminCondominiumListItem = {
   created_at?: string;
   unit_count?: number;
   portaria_device_count?: number;
+  features?: Record<string, boolean>;
 };
 
 export type CreateAdminCondominiumInput = {
@@ -15,6 +16,7 @@ export type CreateAdminCondominiumInput = {
   portaria_email: string;
   portaria_password: string;
   portaria_device_name?: string | null;
+  intercom_enabled?: boolean;
   create_default_unit?: boolean;
   default_unit_type?: string | null;
   default_unit_block?: string | null;
