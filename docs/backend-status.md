@@ -295,6 +295,23 @@ Escritas de negócio devem passar por RPCs ou Edge Functions:
 - timeout: Edge Function `call-timeout-processor` com `x-cron-secret`.
 - voz: Edge Function `livekit-token` gera token temporario para a sala LiveKit da chamada ativa.
 
+## Relatorio de erros do app
+
+Fase 1 implementada para operacao semi-autonoma:
+
+- tabela `app_error_reports`;
+- app autenticado pode inserir relatorios do proprio usuario/condominio;
+- app nao recebe token do GitHub;
+- relatorio grava mensagem, stacktrace, component stack, plataforma, versao do app, perfil, usuario, condominio, chamada relacionada quando existir e metadados sanitizados;
+- RLS garante que o usuario autenticado so cria relatorio para o proprio `auth.uid()` e para o proprio condominio;
+- `service_role` mantem acesso administrativo para analise, dashboards e futura automacao.
+
+Fase 2 prevista:
+
+- criar Edge Function para deduplicar relatorios;
+- abrir ou atualizar issue no GitHub com stacktrace e contexto tecnico;
+- aplicar rate limit e sanitizacao adicional antes de enviar dados ao GitHub.
+
 Resposta:
 
 ```json
