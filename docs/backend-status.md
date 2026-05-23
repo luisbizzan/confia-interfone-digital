@@ -53,6 +53,21 @@ O valor de `SUPABASE_CRON_SECRET` precisa ser igual ao valor de `CRON_SECRET`.
 
 O frontend nao deve escrever diretamente em `calls` ou `call_attempts`.
 
+### Controle de ocupacao
+
+A migration `20260523130500_block_busy_call_targets.sql` aplica a regra operacional de uma chamada por destino ocupado:
+
+- se a portaria estiver com chamada `RINGING` ou `ANSWERED` ainda sem `ended_at`, novas chamadas para a portaria sao bloqueadas;
+- se uma unidade estiver com chamada `RINGING` ou `ANSWERED` ainda sem `ended_at`, novas chamadas envolvendo essa unidade sao bloqueadas;
+- a portaria tambem fica bloqueada para iniciar outra chamada enquanto o dispositivo dela estiver em chamada;
+- o bloqueio usa advisory locks transacionais para reduzir corrida entre duas tentativas simultaneas.
+
+Mensagens retornadas ao app:
+
+- `A portaria esta em atendimento. Tente novamente em alguns minutos.`
+- `Esta unidade esta em atendimento. Tente novamente em alguns minutos.`
+- `Sua unidade esta em atendimento. Encerre a chamada atual antes de iniciar outra.`
+
 ## Portaria
 
 Cada condominio deve ter pelo menos um usuario/dispositivo de portaria em `portaria_devices`.

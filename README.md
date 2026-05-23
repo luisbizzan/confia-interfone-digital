@@ -103,3 +103,18 @@ Base da Fase 7:
 - Historico de chamadas: `get_my_call_history`
 - Realtime: `calls`, `call_attempts`, `call_events`
 - Scheduler de timeout: `call-timeout-processor` chamando `process_expired_calls`
+
+## Regra de Ocupacao
+
+O backend bloqueia nova chamada quando o destino operacional ja esta ocupado:
+
+- portaria em `RINGING` ou `ANSWERED` bloqueia outra chamada para a portaria;
+- unidade em `RINGING` ou `ANSWERED` bloqueia outra chamada para essa unidade;
+- uma unidade que ja esta em chamada tambem nao inicia nova chamada;
+- uma portaria que ja esta em chamada tambem nao inicia nova chamada.
+
+Mensagens esperadas no app:
+
+- `A portaria esta em atendimento. Tente novamente em alguns minutos.`
+- `Esta unidade esta em atendimento. Tente novamente em alguns minutos.`
+- `Sua unidade esta em atendimento. Encerre a chamada atual antes de iniciar outra.`
