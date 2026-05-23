@@ -468,3 +468,16 @@ Fluxo previsto:
 4. app solicita `livekit-token`;
 5. app entra na sala LiveKit;
 6. ao encerrar, app chama `end_call` e sai da sala.
+
+### Escopo do historico do app
+
+`get_my_call_history` retorna apenas chamadas em que o usuario logado participa.
+
+Regras:
+
+- morador recebe chamadas em que sua unidade e origem ou destino;
+- portaria recebe chamadas em que seu dispositivo e origem ou destino;
+- chamadas unidade para unidade nao aparecem como estado ativo da portaria;
+- historico amplo do condominio permanece responsabilidade do backoffice administrativo.
+
+Essa regra foi reforcada depois do teste com 3 aparelhos em 23/05/2026, quando uma chamada entre unidades podia ser interpretada pela UI da portaria como chamada propria por causa do historico amplo.

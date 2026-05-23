@@ -103,6 +103,7 @@ Base da Fase 7:
 - Historico de chamadas: `get_my_call_history`
 - Realtime: `calls`, `call_attempts`, `call_events`
 - Scheduler de timeout: `call-timeout-processor` chamando `process_expired_calls`
+- O historico do app (`get_my_call_history`) e escopado ao usuario logado: unidades do morador ou dispositivo de portaria.
 
 ## Regra de Ocupacao
 
