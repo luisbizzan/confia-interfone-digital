@@ -118,3 +118,16 @@ Mensagens esperadas no app:
 - `A portaria esta em atendimento. Tente novamente em alguns minutos.`
 - `Esta unidade esta em atendimento. Tente novamente em alguns minutos.`
 - `Sua unidade esta em atendimento. Encerre a chamada atual antes de iniciar outra.`
+
+## Diagnostico de Chamadas
+
+Eventos operacionais enviados pelo app ficam em `app_call_diagnostics`.
+
+Essa tabela ajuda a investigar testes com multiplos celulares, registrando:
+
+- clique/inicio da acao;
+- sucesso ou erro da RPC;
+- duracao em milissegundos;
+- `call_id`, unidade de origem e destino;
+- perfil do usuario e plataforma do app;
+- mensagem de erro retornada ao usuario.

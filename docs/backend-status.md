@@ -68,6 +68,22 @@ Mensagens retornadas ao app:
 - `Esta unidade esta em atendimento. Tente novamente em alguns minutos.`
 - `Sua unidade esta em atendimento. Encerre a chamada atual antes de iniciar outra.`
 
+### Diagnostico operacional do app
+
+A migration `20260523143000_add_app_call_diagnostics.sql` cria a tabela `app_call_diagnostics`.
+
+Ela registra eventos enviados pelo app durante testes em aparelhos reais:
+
+- usuario, condominio e perfil;
+- acao executada no app;
+- resultado `STARTED`, `SUCCESS` ou `ERROR`;
+- `call_id`, unidade de origem e unidade de destino quando disponiveis;
+- duracao da chamada RPC em milissegundos;
+- mensagem de erro retornada pelo backend;
+- metadados de plataforma/dispositivo enviados pelo app.
+
+Objetivo: investigar casos em que, com multiplos aparelhos, o usuario toca em ligar e a outra ponta nao reflete o estado esperado.
+
 ## Portaria
 
 Cada condominio deve ter pelo menos um usuario/dispositivo de portaria em `portaria_devices`.
