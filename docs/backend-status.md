@@ -481,3 +481,43 @@ Regras:
 - historico amplo do condominio permanece responsabilidade do backoffice administrativo.
 
 Essa regra foi reforcada depois do teste com 3 aparelhos em 23/05/2026, quando uma chamada entre unidades podia ser interpretada pela UI da portaria como chamada propria por causa do historico amplo.
+
+### Push notifications
+
+Base implementada para chamadas recebidas e futuras funcionalidades do app.
+
+Banco:
+
+- tabela `app_push_tokens`;
+- RPC `register_app_push_token`;
+- RPC `unregister_app_push_token`.
+
+Regras:
+
+- cada token pertence a um `auth.users.id` e a um condominio;
+- o app registra o `ExpoPushToken` depois do login;
+- logout desativa o token;
+- tokens sao usados apenas pelo backend com `service_role`;
+- usuarios autenticados conseguem consultar apenas os proprios tokens.
+
+Edge Function:
+
+- `send-call-notification`
+
+Fluxo:
+
+1. o app cria uma chamada pelas RPCs transacionais existentes;
+2. apos receber o `call_id`, o app chama `send-call-notification` em modo best effort;
+3. a Edge Function valida o usuario autenticado;
+4. a Edge Function confirma que o usuario participa ou consegue enxergar a chamada;
+5. a Edge Function busca os destinatarios:
+   - `target_type = PORTARIA`: usuario do `target_portaria_device_id`;
+   - `target_type = UNIT`: morador da tentativa atual em `call_attempts`;
+6. o iniciador da chamada e removido dos destinatarios;
+7. mensagens sao enviadas para o Expo Push Service.
+
+Pendencias:
+
+- configurar credenciais FCM V1 no Android e APNs no iOS antes de validar push em APK/loja;
+- implementar leitura de receipts do Expo para desativar tokens invalidos;
+- validar com app em segundo plano em aparelho fisico.

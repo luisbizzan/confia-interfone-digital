@@ -104,6 +104,11 @@ Base da Fase 7:
 - Realtime: `calls`, `call_attempts`, `call_events`
 - Scheduler de timeout: `call-timeout-processor` chamando `process_expired_calls`
 - O historico do app (`get_my_call_history`) e escopado ao usuario logado: unidades do morador ou dispositivo de portaria.
+- Push notifications:
+  - tabela `app_push_tokens`;
+  - RPC `register_app_push_token`;
+  - RPC `unregister_app_push_token`;
+  - Edge Function `send-call-notification`.
 
 ## Regra de Ocupacao
 
@@ -132,3 +137,22 @@ Essa tabela ajuda a investigar testes com multiplos celulares, registrando:
 - `call_id`, unidade de origem e destino;
 - perfil do usuario e plataforma do app;
 - mensagem de erro retornada ao usuario.
+
+## Push Notifications
+
+A base de notificacoes usa Expo Push Service para Android e iOS.
+
+Fluxo atual:
+
+- o app registra o `ExpoPushToken` apos login;
+- o backend armazena o token em `app_push_tokens`;
+- ao criar chamada, o app chama `send-call-notification` com o `call_id`;
+- a Edge Function valida a chamada, encontra os destinatarios e envia a notificacao;
+- se nao houver token cadastrado, o fluxo de chamada segue normalmente.
+
+Pendencias para producao:
+
+- configurar FCM V1 no Android;
+- configurar APNs no iOS;
+- validar push em segundo plano com APK/loja;
+- processar receipts do Expo para limpar tokens invalidos.
