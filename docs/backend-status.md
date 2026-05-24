@@ -528,3 +528,8 @@ Diagnostico operacional:
 - quando nao ha token ativo para o destinatario, registra `reason = no_tokens`;
 - quando ha envio ao Expo Push Service, registra quantidade de tokens e tickets retornados;
 - quando o envio falha, registra `ERROR` com a mensagem tecnica em `error_message`.
+- em 24/05/2026, teste com app receptor em background confirmou:
+  - `push_registration = SUCCESS` para morador e portaria;
+  - app chamador gravou `push_dispatch_client = ERROR`;
+  - erro retornado pela Edge Function: status nao-2xx;
+  - versao 3 da Edge Function passou a registrar tambem saidas antecipadas como `call_not_found`, `call_not_ringing` e `requester_cannot_notify`.

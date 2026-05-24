@@ -22,104 +22,131 @@ type PushTokenRow = {
 }
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders })
-  }
+  try {
+    if (req.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders })
+    }
 
-  if (req.method !== "POST") {
-    return json({ error: "Method not allowed" }, 405)
-  }
+    if (req.method !== "POST") {
+      return json({ error: "Method not allowed" }, 405)
+    }
 
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return json({ error: "Missing environment variables" }, 500)
-  }
+    if (!supabaseUrl || !serviceRoleKey) {
+      return json({ error: "Missing environment variables" }, 500)
+    }
 
-  const authHeader = req.headers.get("Authorization")
-  const userToken = authHeader?.replace(/^Bearer\s+/i, "")
+    const authHeader = req.headers.get("Authorization")
+    const userToken = authHeader?.replace(/^Bearer\s+/i, "")
 
-  if (!userToken) {
-    return json({ error: "Unauthorized" }, 401)
-  }
+    if (!userToken) {
+      return json({ error: "Unauthorized" }, 401)
+    }
 
-  const user = await fetchAuthenticatedUser(supabaseUrl, serviceRoleKey, userToken)
+    const user = await fetchAuthenticatedUser(supabaseUrl, serviceRoleKey, userToken)
 
-  if (!user?.id) {
-    return json({ error: "Unauthorized" }, 401)
-  }
+    if (!user?.id) {
+      return json({ error: "Unauthorized" }, 401)
+    }
 
-  const payload = await req.json().catch(() => null)
-  const callId = payload?.call_id
+    const payload = await req.json().catch(() => null)
+    const callId = payload?.call_id
 
-  if (!isUuid(callId)) {
-    return json({ error: "Invalid call_id" }, 400)
-  }
+    if (!isUuid(callId)) {
+      await insertGenericPushDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        reason: "invalid_call_id",
+      }, "Invalid call_id")
+      return json({ error: "Invalid call_id" }, 400)
+    }
 
-  const call = await fetchCall(supabaseUrl, serviceRoleKey, callId)
+    const call = await fetchCall(supabaseUrl, serviceRoleKey, callId)
 
-  if (!call) {
-    return json({ error: "Call not found" }, 404)
-  }
+    if (!call) {
+      await insertGenericPushDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        call_id: callId,
+        reason: "call_not_found",
+      }, "Call not found")
+      return json({ error: "Call not found" }, 404)
+    }
 
-  if (call.status !== "RINGING" || call.ended_at !== null) {
-    return json({ skipped: true, reason: "call_not_ringing" })
-  }
-
-  const requesterCanNotify = await userCanSeeCall(supabaseUrl, serviceRoleKey, call, user.id)
-
-  if (!requesterCanNotify) {
-    return json({ error: "Forbidden" }, 403)
-  }
-
-  const recipients = await fetchRecipientTokens(supabaseUrl, serviceRoleKey, call, user.id)
-
-  if (recipients.length === 0) {
-    await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
-      reason: "no_tokens",
-      recipient_user_count: 0,
-      target_type: call.target_type,
-    })
-    return json({ sent: 0, tickets: [], skipped: true, reason: "no_tokens" })
-  }
-
-  const message = buildNotificationMessage(call)
-  const pushMessages = recipients.map((recipient) => ({
-    to: recipient.expo_push_token,
-    sound: "default",
-    title: message.title,
-    body: message.body,
-    data: {
-      call_id: call.id,
-      condominium_id: call.condominium_id,
-      kind: "incoming_call",
-      target_type: call.target_type,
-    },
-    priority: "high",
-    channelId: "incoming-calls",
-  }))
-
-  const tickets = await sendExpoPushNotifications(pushMessages)
-    .catch(async (error) => {
-      const message = error instanceof Error ? error.message : "Unknown Expo push error"
-      await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "ERROR", {
-        recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
-        sent_token_count: recipients.length,
+    if (call.status !== "RINGING" || call.ended_at !== null) {
+      await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+        call_status: call.status,
+        ended_at: call.ended_at,
+        reason: "call_not_ringing",
         target_type: call.target_type,
-      }, message)
+      })
+      return json({ skipped: true, reason: "call_not_ringing" })
+    }
 
-      throw error
+    const requesterCanNotify = await userCanSeeCall(supabaseUrl, serviceRoleKey, call, user.id)
+
+    if (!requesterCanNotify) {
+      await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "ERROR", {
+        origin_portaria_device_id: call.origin_portaria_device_id,
+        origin_type: call.origin_type,
+        origin_unit_id: call.origin_unit_id,
+        reason: "requester_cannot_notify",
+        target_portaria_device_id: call.target_portaria_device_id,
+        target_type: call.target_type,
+        unit_id: call.unit_id,
+      }, "Forbidden")
+      return json({ error: "Forbidden" }, 403)
+    }
+
+    const recipients = await fetchRecipientTokens(supabaseUrl, serviceRoleKey, call, user.id)
+
+    if (recipients.length === 0) {
+      await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+        reason: "no_tokens",
+        recipient_user_count: 0,
+        target_type: call.target_type,
+      })
+      return json({ sent: 0, tickets: [], skipped: true, reason: "no_tokens" })
+    }
+
+    const message = buildNotificationMessage(call)
+    const pushMessages = recipients.map((recipient) => ({
+      to: recipient.expo_push_token,
+      sound: "default",
+      title: message.title,
+      body: message.body,
+      data: {
+        call_id: call.id,
+        condominium_id: call.condominium_id,
+        kind: "incoming_call",
+        target_type: call.target_type,
+      },
+      priority: "high",
+      channelId: "incoming-calls",
+    }))
+
+    const tickets = await sendExpoPushNotifications(pushMessages)
+      .catch(async (error) => {
+        const message = error instanceof Error ? error.message : "Unknown Expo push error"
+        await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "ERROR", {
+          recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
+          sent_token_count: recipients.length,
+          target_type: call.target_type,
+        }, message)
+
+        throw error
+      })
+
+    await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+      recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
+      sent_token_count: recipients.length,
+      target_type: call.target_type,
+      tickets,
     })
 
-  await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
-    recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
-    sent_token_count: recipients.length,
-    target_type: call.target_type,
-    tickets,
-  })
-
-  return json({ sent: recipients.length, tickets })
+    return json({ sent: recipients.length, tickets })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown send-call-notification error"
+    return json({ error: message }, 500)
+  }
 })
 
 async function fetchAuthenticatedUser(supabaseUrl: string, serviceRoleKey: string, userToken: string) {
@@ -313,6 +340,32 @@ async function insertPushDiagnostic(
       action: "push_notification_dispatch",
       call_id: call.id,
       condominium_id: call.condominium_id,
+      error_message: errorMessage,
+      metadata,
+      result,
+      user_id: userId,
+    }),
+  }).catch(() => {
+    // Diagnostics cannot interfere with the call flow.
+  })
+}
+
+async function insertGenericPushDiagnostic(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  userId: string,
+  result: "SUCCESS" | "ERROR",
+  metadata: Record<string, unknown>,
+  errorMessage: string | null = null,
+) {
+  await fetch(`${supabaseUrl}/rest/v1/app_call_diagnostics`, {
+    method: "POST",
+    headers: {
+      ...serviceHeaders(serviceRoleKey),
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({
+      action: "push_notification_dispatch",
       error_message: errorMessage,
       metadata,
       result,
