@@ -521,3 +521,10 @@ Pendencias:
 - configurar credenciais FCM V1 no Android e APNs no iOS antes de validar push em APK/loja;
 - implementar leitura de receipts do Expo para desativar tokens invalidos;
 - validar com app em segundo plano em aparelho fisico.
+
+Diagnostico operacional:
+
+- a Edge Function `send-call-notification` grava `app_call_diagnostics.action = push_notification_dispatch`;
+- quando nao ha token ativo para o destinatario, registra `reason = no_tokens`;
+- quando ha envio ao Expo Push Service, registra quantidade de tokens e tickets retornados;
+- quando o envio falha, registra `ERROR` com a mensagem tecnica em `error_message`.

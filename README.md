@@ -156,3 +156,9 @@ Pendencias para producao:
 - configurar APNs no iOS;
 - validar push em segundo plano com APK/loja;
 - processar receipts do Expo para limpar tokens invalidos.
+
+Diagnostico:
+
+- o app grava `push_registration` em `app_call_diagnostics`;
+- a Edge Function grava `push_notification_dispatch` em `app_call_diagnostics`;
+- esses eventos permitem separar falha de token, ausencia de destinatario, falha de envio Expo e falha de entrega Android/iOS.

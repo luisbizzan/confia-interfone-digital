@@ -76,26 +76,48 @@ Deno.serve(async (req) => {
   const recipients = await fetchRecipientTokens(supabaseUrl, serviceRoleKey, call, user.id)
 
   if (recipients.length === 0) {
+    await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+      reason: "no_tokens",
+      recipient_user_count: 0,
+      target_type: call.target_type,
+    })
     return json({ sent: 0, tickets: [], skipped: true, reason: "no_tokens" })
   }
 
   const message = buildNotificationMessage(call)
-  const tickets = await sendExpoPushNotifications(
-    recipients.map((recipient) => ({
-      to: recipient.expo_push_token,
-      sound: "default",
-      title: message.title,
-      body: message.body,
-      data: {
-        call_id: call.id,
-        condominium_id: call.condominium_id,
-        kind: "incoming_call",
+  const pushMessages = recipients.map((recipient) => ({
+    to: recipient.expo_push_token,
+    sound: "default",
+    title: message.title,
+    body: message.body,
+    data: {
+      call_id: call.id,
+      condominium_id: call.condominium_id,
+      kind: "incoming_call",
+      target_type: call.target_type,
+    },
+    priority: "high",
+    channelId: "incoming-calls",
+  }))
+
+  const tickets = await sendExpoPushNotifications(pushMessages)
+    .catch(async (error) => {
+      const message = error instanceof Error ? error.message : "Unknown Expo push error"
+      await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "ERROR", {
+        recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
+        sent_token_count: recipients.length,
         target_type: call.target_type,
-      },
-      priority: "high",
-      channelId: "incoming-calls",
-    })),
-  )
+      }, message)
+
+      throw error
+    })
+
+  await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+    recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
+    sent_token_count: recipients.length,
+    target_type: call.target_type,
+    tickets,
+  })
 
   return json({ sent: recipients.length, tickets })
 })
@@ -270,6 +292,35 @@ async function sendExpoPushNotifications(messages: unknown[]) {
   }
 
   return response.json()
+}
+
+async function insertPushDiagnostic(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  call: CallRecord,
+  userId: string,
+  result: "SUCCESS" | "ERROR",
+  metadata: Record<string, unknown>,
+  errorMessage: string | null = null,
+) {
+  await fetch(`${supabaseUrl}/rest/v1/app_call_diagnostics`, {
+    method: "POST",
+    headers: {
+      ...serviceHeaders(serviceRoleKey),
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({
+      action: "push_notification_dispatch",
+      call_id: call.id,
+      condominium_id: call.condominium_id,
+      error_message: errorMessage,
+      metadata,
+      result,
+      user_id: userId,
+    }),
+  }).catch(() => {
+    // Diagnostics cannot interfere with the call flow.
+  })
 }
 
 function serviceHeaders(serviceRoleKey: string) {
