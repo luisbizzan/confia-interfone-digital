@@ -166,3 +166,4 @@ Diagnostico:
 - a Edge Function aceita formatos alternativos de payload de chamada (`call_id`, `callId` ou `body.call_id`) para tolerar diferencas do cliente Supabase no app nativo.
 - se o valor vier serializado de forma nao padrao, a Edge Function procura um UUID valido dentro do payload antes de rejeitar o envio.
 - como fallback operacional, se o payload nao trouxer UUID legivel, a Edge Function busca uma chamada `RINGING` recente do usuario autenticado antes de desistir.
+- em Android, ticket `InvalidCredentials` do Expo significa que a credencial FCM V1 ainda precisa ser configurada no Expo/EAS para entrega real em background.
