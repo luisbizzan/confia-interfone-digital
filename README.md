@@ -165,3 +165,4 @@ Diagnostico:
 - a Edge Function tambem registra retornos antecipados relevantes, como chamada nao encontrada, chamada que deixou de tocar e usuario sem permissao para disparar a notificacao.
 - a Edge Function aceita formatos alternativos de payload de chamada (`call_id`, `callId` ou `body.call_id`) para tolerar diferencas do cliente Supabase no app nativo.
 - se o valor vier serializado de forma nao padrao, a Edge Function procura um UUID valido dentro do payload antes de rejeitar o envio.
+- como fallback operacional, se o payload nao trouxer UUID legivel, a Edge Function busca uma chamada `RINGING` recente do usuario autenticado antes de desistir.

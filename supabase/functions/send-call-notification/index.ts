@@ -13,6 +13,7 @@ type CallRecord = {
   target_type: "PORTARIA" | "UNIT"
   target_portaria_device_id: string | null
   status: "RINGING" | "ANSWERED" | "MISSED" | "CANCELLED"
+  started_at: string
   ended_at: string | null
 }
 
@@ -53,8 +54,15 @@ Deno.serve(async (req) => {
 
     const payload = await req.json().catch(() => null)
     const callId = extractCallId(payload)
+    let call: CallRecord | null = null
 
-    if (!isUuid(callId)) {
+    if (isUuid(callId)) {
+      call = await fetchCall(supabaseUrl, serviceRoleKey, callId)
+    } else {
+      call = await fetchRecentRingingCallForUser(supabaseUrl, serviceRoleKey, user.id)
+    }
+
+    if (!isUuid(callId) && !call) {
       await insertGenericPushDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
         payload_shape: describePayload(payload),
         reason: "invalid_call_id",
@@ -62,14 +70,20 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid call_id" }, 400)
     }
 
-    const call = await fetchCall(supabaseUrl, serviceRoleKey, callId)
-
     if (!call) {
       await insertGenericPushDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
         call_id: callId,
         reason: "call_not_found",
       }, "Call not found")
       return json({ error: "Call not found" }, 404)
+    }
+
+    if (!isUuid(callId)) {
+      await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+        fallback_call_id: call.id,
+        payload_shape: describePayload(payload),
+        reason: "fallback_recent_ringing_call",
+      })
     }
 
     if (call.status !== "RINGING" || call.ended_at !== null) {
@@ -176,6 +190,7 @@ async function fetchCall(supabaseUrl: string, serviceRoleKey: string, callId: st
     "target_type",
     "target_portaria_device_id",
     "status",
+    "started_at",
     "ended_at",
   ].join(",")
 
@@ -189,6 +204,53 @@ async function fetchCall(supabaseUrl: string, serviceRoleKey: string, callId: st
 
   const rows = await response.json()
   return rows?.[0] ?? null
+}
+
+async function fetchRecentRingingCallForUser(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  userId: string,
+): Promise<CallRecord | null> {
+  const select = [
+    "id",
+    "condominium_id",
+    "unit_id",
+    "origin_type",
+    "origin_unit_id",
+    "origin_portaria_device_id",
+    "target_type",
+    "target_portaria_device_id",
+    "status",
+    "started_at",
+    "ended_at",
+  ].join(",")
+
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/calls?status=eq.RINGING&ended_at=is.null&select=${select}&order=started_at.desc&limit=10`,
+    { headers: serviceHeaders(serviceRoleKey) },
+  )
+
+  if (!response.ok) {
+    return null
+  }
+
+  const rows = (await response.json()) as CallRecord[]
+  const now = Date.now()
+
+  for (const call of rows) {
+    const startedAt = Date.parse(call.started_at)
+    const isRecent = Number.isFinite(startedAt) && now - startedAt <= 2 * 60 * 1000
+
+    if (!isRecent) {
+      continue
+    }
+
+    if (await userCanSeeCall(supabaseUrl, serviceRoleKey, call, userId)) {
+      return call
+    }
+  }
+
+  return null
 }
 
 async function userCanSeeCall(supabaseUrl: string, serviceRoleKey: string, call: CallRecord, userId: string) {

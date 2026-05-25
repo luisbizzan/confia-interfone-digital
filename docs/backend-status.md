@@ -540,3 +540,5 @@ Diagnostico operacional:
   - versao 4 da Edge Function passou a aceitar `call_id`, `callId`, `body.call_id`, `body.callId` e payload stringificado, alem de registrar `payload_shape` em novas falhas.
 - em 24/05/2026 a versao 4 mostrou `payload_shape.keys = [call_id]`, mas ainda com `invalid_call_id`;
   - versao 5 da Edge Function passou a procurar UUID valido dentro do valor de `call_id` e em qualquer valor aninhado do payload.
+- em 24/05/2026 a falha persistiu com `payload_shape.keys = [call_id]`;
+  - versao 6 da Edge Function passou a usar fallback operacional: se o payload nao trouxer UUID legivel, a funcao busca a chamada `RINGING` mais recente dos ultimos 2 minutos em que o usuario autenticado participa.
