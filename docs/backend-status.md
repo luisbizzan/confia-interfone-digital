@@ -556,3 +556,9 @@ Diagnostico operacional:
 - em 25/05/2026 o teste real confirmou entrega da notificacao em background no Android.
 - a Edge Function passou a enviar chamadas no canal Android `incoming-calls-v2` e com som `call_ringtone.wav`, alinhado ao APK que inclui o som customizado.
 - limite conhecido: o som de notificacao comum toca uma vez; toque continuo em background no estilo WhatsApp/Telegram exige camada nativa de chamada no app.
+- em 25/05/2026 iniciou a etapa Android de chamada nativa:
+  - tabela `app_push_tokens` passou a guardar `native_push_token` e `native_push_provider`;
+  - RPC `register_app_push_token` aceita token FCM nativo alem do `ExpoPushToken`;
+  - Supabase Secret `FIREBASE_SERVICE_ACCOUNT_JSON` foi configurado para envio FCM direto;
+  - Edge Function `send-call-notification` passou a enviar mensagem FCM data-only de alta prioridade para acionar a tarefa background/CallKeep no app;
+  - diagnostico `push_notification_dispatch` inclui `fcm_token_count` e `fcm_results`.

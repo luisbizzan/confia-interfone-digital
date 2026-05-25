@@ -19,7 +19,15 @@ type CallRecord = {
 
 type PushTokenRow = {
   expo_push_token: string
+  native_push_provider: string | null
+  native_push_token: string | null
   user_id: string
+}
+
+type FirebaseServiceAccount = {
+  client_email: string
+  private_key: string
+  project_id: string
 }
 
 Deno.serve(async (req) => {
@@ -138,6 +146,21 @@ Deno.serve(async (req) => {
       channelId: "incoming-calls-v2",
     }))
 
+    const fcmMessages = recipients
+      .filter((recipient) => recipient.native_push_provider === "fcm" && recipient.native_push_token)
+      .map((recipient) => ({
+        token: recipient.native_push_token as string,
+        data: {
+          body: message.body,
+          call_id: call.id,
+          caller_name: message.title,
+          condominium_id: call.condominium_id,
+          kind: "incoming_call",
+          target_type: call.target_type,
+          title: message.title,
+        },
+      }))
+
     const tickets = await sendExpoPushNotifications(pushMessages)
       .catch(async (error) => {
         const message = error instanceof Error ? error.message : "Unknown Expo push error"
@@ -150,7 +173,11 @@ Deno.serve(async (req) => {
         throw error
       })
 
+    const fcmResults = await sendNativeFcmNotifications(fcmMessages)
+
     await insertPushDiagnostic(supabaseUrl, serviceRoleKey, call, user.id, "SUCCESS", {
+      fcm_results: fcmResults,
+      fcm_token_count: fcmMessages.length,
       recipient_user_count: new Set(recipients.map((recipient) => recipient.user_id)).size,
       sent_token_count: recipients.length,
       target_type: call.target_type,
@@ -301,7 +328,7 @@ async function fetchRecipientTokens(supabaseUrl: string, serviceRoleKey: string,
   }
 
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/app_push_tokens?user_id=in.(${uniqueRecipientUserIds.join(",")})&is_active=eq.true&select=expo_push_token,user_id`,
+    `${supabaseUrl}/rest/v1/app_push_tokens?user_id=in.(${uniqueRecipientUserIds.join(",")})&is_active=eq.true&select=expo_push_token,native_push_token,native_push_provider,user_id`,
     { headers: serviceHeaders(serviceRoleKey) },
   )
 
@@ -382,6 +409,139 @@ async function sendExpoPushNotifications(messages: unknown[]) {
   }
 
   return response.json()
+}
+
+async function sendNativeFcmNotifications(messages: Array<{ token: string; data: Record<string, string> }>) {
+  if (messages.length === 0) {
+    return { skipped: true, reason: "no_native_tokens" }
+  }
+
+  const serviceAccount = getFirebaseServiceAccount()
+
+  if (!serviceAccount) {
+    return { skipped: true, reason: "missing_firebase_service_account", token_count: messages.length }
+  }
+
+  const accessToken = await getFirebaseAccessToken(serviceAccount)
+  const results = []
+
+  for (const message of messages) {
+    const response = await fetch(`https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: {
+          android: {
+            priority: "HIGH",
+            ttl: "60s",
+          },
+          data: message.data,
+          token: message.token,
+        },
+      }),
+    })
+
+    const body = await response.json().catch(async () => ({ raw: await response.text().catch(() => "") }))
+    results.push({
+      ok: response.ok,
+      status: response.status,
+      token_prefix: message.token.slice(0, 12),
+      body,
+    })
+  }
+
+  return results
+}
+
+function getFirebaseServiceAccount(): FirebaseServiceAccount | null {
+  const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON")
+
+  if (!raw) {
+    return null
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<FirebaseServiceAccount>
+
+    if (!parsed.client_email || !parsed.private_key || !parsed.project_id) {
+      return null
+    }
+
+    return {
+      client_email: parsed.client_email,
+      private_key: parsed.private_key,
+      project_id: parsed.project_id,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function getFirebaseAccessToken(serviceAccount: FirebaseServiceAccount) {
+  const now = Math.floor(Date.now() / 1000)
+  const jwtHeader = { alg: "RS256", typ: "JWT" }
+  const jwtClaim = {
+    aud: "https://oauth2.googleapis.com/token",
+    exp: now + 3600,
+    iat: now,
+    iss: serviceAccount.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+  }
+  const unsignedJwt = `${base64UrlEncode(JSON.stringify(jwtHeader))}.${base64UrlEncode(JSON.stringify(jwtClaim))}`
+  const key = await importPrivateKey(serviceAccount.private_key)
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsignedJwt))
+  const assertion = `${unsignedJwt}.${base64UrlEncode(signature)}`
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      assertion,
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+    }).toString(),
+  })
+
+  const body = await response.json()
+
+  if (!response.ok || !body.access_token) {
+    throw new Error(`Firebase auth failed: ${response.status} ${JSON.stringify(body)}`)
+  }
+
+  return body.access_token as string
+}
+
+async function importPrivateKey(privateKey: string) {
+  const pem = privateKey
+    .replace("-----BEGIN PRIVATE KEY-----", "")
+    .replace("-----END PRIVATE KEY-----", "")
+    .replace(/\s+/g, "")
+  const binary = Uint8Array.from(atob(pem), (char) => char.charCodeAt(0))
+
+  return crypto.subtle.importKey(
+    "pkcs8",
+    binary,
+    {
+      hash: "SHA-256",
+      name: "RSASSA-PKCS1-v1_5",
+    },
+    false,
+    ["sign"],
+  )
+}
+
+function base64UrlEncode(value: string | ArrayBuffer) {
+  const bytes = typeof value === "string" ? new TextEncoder().encode(value) : new Uint8Array(value)
+  let binary = ""
+
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte)
+  }
+
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "")
 }
 
 async function insertPushDiagnostic(

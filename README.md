@@ -171,3 +171,6 @@ Diagnostico:
 - em 25/05/2026 a entrega em background foi confirmada em Android.
 - a Edge Function envia chamadas no canal `incoming-calls-v2` com som `call_ringtone.wav`; o APK precisa conter esse som e registrar o mesmo canal.
 - notificacao comum toca uma vez; chamada persistente estilo WhatsApp/Telegram depende de camada nativa propria.
+- a etapa Android de chamada nativa usa tambem `native_push_token` FCM salvo em `app_push_tokens`;
+- `send-call-notification` envia FCM data-only de alta prioridade quando ha token nativo, alem do Expo Push visual;
+- `FIREBASE_SERVICE_ACCOUNT_JSON` precisa estar configurado como secret da Edge Function para envio FCM direto.
