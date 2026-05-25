@@ -52,10 +52,11 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json().catch(() => null)
-    const callId = payload?.call_id
+    const callId = extractCallId(payload)
 
     if (!isUuid(callId)) {
       await insertGenericPushDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        payload_shape: describePayload(payload),
         reason: "invalid_call_id",
       }, "Invalid call_id")
       return json({ error: "Invalid call_id" }, 400)
@@ -386,6 +387,69 @@ function serviceHeaders(serviceRoleKey: string) {
 
 function isUuid(value: unknown) {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value)
+}
+
+function extractCallId(payload: unknown) {
+  if (typeof payload === "string") {
+    if (isUuid(payload)) {
+      return payload
+    }
+
+    const parsed = parseJsonObject(payload)
+    return extractCallId(parsed)
+  }
+
+  if (!payload || typeof payload !== "object") {
+    return null
+  }
+
+  const record = payload as Record<string, unknown>
+  const directCallId = record.call_id ?? record.callId
+
+  if (isUuid(directCallId)) {
+    return directCallId
+  }
+
+  const nestedBody = record.body
+  if (typeof nestedBody === "string") {
+    return extractCallId(nestedBody)
+  }
+
+  if (nestedBody && typeof nestedBody === "object") {
+    return extractCallId(nestedBody)
+  }
+
+  return null
+}
+
+function parseJsonObject(value: string) {
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function describePayload(payload: unknown) {
+  if (payload === null) {
+    return { type: "null" }
+  }
+
+  if (Array.isArray(payload)) {
+    return { length: payload.length, type: "array" }
+  }
+
+  if (typeof payload === "object") {
+    const record = payload as Record<string, unknown>
+    return {
+      keys: Object.keys(record),
+      type: "object",
+    }
+  }
+
+  return {
+    type: typeof payload,
+  }
 }
 
 function json(body: unknown, status = 200) {
