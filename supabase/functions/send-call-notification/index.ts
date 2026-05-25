@@ -144,6 +144,7 @@ Deno.serve(async (req) => {
       },
       priority: "high",
       channelId: "incoming-calls-v2",
+      categoryId: "incoming_call",
     }))
 
     const fcmMessages = recipients
