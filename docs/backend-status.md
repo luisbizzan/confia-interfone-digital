@@ -553,3 +553,6 @@ Diagnostico operacional:
   - conta Expo: `luisbizzan`;
   - service account Firebase vinculada para push Android;
   - proximo teste deve verificar se o ticket Expo deixa de retornar `InvalidCredentials`.
+- em 25/05/2026 o teste real confirmou entrega da notificacao em background no Android.
+- a Edge Function passou a enviar chamadas no canal Android `incoming-calls-v2` e com som `call_ringtone.wav`, alinhado ao APK que inclui o som customizado.
+- limite conhecido: o som de notificacao comum toca uma vez; toque continuo em background no estilo WhatsApp/Telegram exige camada nativa de chamada no app.

@@ -168,3 +168,6 @@ Diagnostico:
 - como fallback operacional, se o payload nao trouxer UUID legivel, a Edge Function busca uma chamada `RINGING` recente do usuario autenticado antes de desistir.
 - em Android, ticket `InvalidCredentials` do Expo significa que a credencial FCM V1 ainda precisa ser configurada no Expo/EAS para entrega real em background.
 - a credencial FCM V1 Android foi vinculada no Expo/EAS em 25/05/2026; novos testes devem confirmar tickets Expo sem `InvalidCredentials`.
+- em 25/05/2026 a entrega em background foi confirmada em Android.
+- a Edge Function envia chamadas no canal `incoming-calls-v2` com som `call_ringtone.wav`; o APK precisa conter esse som e registrar o mesmo canal.
+- notificacao comum toca uma vez; chamada persistente estilo WhatsApp/Telegram depende de camada nativa propria.

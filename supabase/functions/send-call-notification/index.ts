@@ -125,7 +125,7 @@ Deno.serve(async (req) => {
     const message = buildNotificationMessage(call)
     const pushMessages = recipients.map((recipient) => ({
       to: recipient.expo_push_token,
-      sound: "default",
+      sound: "call_ringtone.wav",
       title: message.title,
       body: message.body,
       data: {
@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         target_type: call.target_type,
       },
       priority: "high",
-      channelId: "incoming-calls",
+      channelId: "incoming-calls-v2",
     }))
 
     const tickets = await sendExpoPushNotifications(pushMessages)
