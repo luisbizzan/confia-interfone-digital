@@ -167,3 +167,4 @@ Diagnostico:
 - se o valor vier serializado de forma nao padrao, a Edge Function procura um UUID valido dentro do payload antes de rejeitar o envio.
 - como fallback operacional, se o payload nao trouxer UUID legivel, a Edge Function busca uma chamada `RINGING` recente do usuario autenticado antes de desistir.
 - em Android, ticket `InvalidCredentials` do Expo significa que a credencial FCM V1 ainda precisa ser configurada no Expo/EAS para entrega real em background.
+- a credencial FCM V1 Android foi vinculada no Expo/EAS em 25/05/2026; novos testes devem confirmar tickets Expo sem `InvalidCredentials`.

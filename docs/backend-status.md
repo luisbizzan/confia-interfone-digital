@@ -548,3 +548,8 @@ Diagnostico operacional:
   - o ticket veio com `status = error`, `details.error = InvalidCredentials`;
   - mensagem do Expo: `Unable to retrieve the FCM server key for the recipient's app`;
   - proximo passo: configurar credencial FCM V1 do projeto Android no Expo/EAS antes de esperar entrega em background.
+- em 25/05/2026 a credencial FCM V1 foi configurada no Expo/EAS:
+  - app Android: `br.com.confia.interfone`;
+  - conta Expo: `luisbizzan`;
+  - service account Firebase vinculada para push Android;
+  - proximo teste deve verificar se o ticket Expo deixa de retornar `InvalidCredentials`.
