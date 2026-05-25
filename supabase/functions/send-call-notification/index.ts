@@ -410,6 +410,12 @@ function extractCallId(payload: unknown) {
     return directCallId
   }
 
+  const nestedDirectCallId = extractFirstUuid(directCallId)
+
+  if (nestedDirectCallId) {
+    return nestedDirectCallId
+  }
+
   const nestedBody = record.body
   if (typeof nestedBody === "string") {
     return extractCallId(nestedBody)
@@ -419,7 +425,7 @@ function extractCallId(payload: unknown) {
     return extractCallId(nestedBody)
   }
 
-  return null
+  return extractFirstUuid(record)
 }
 
 function parseJsonObject(value: string) {
@@ -450,6 +456,37 @@ function describePayload(payload: unknown) {
   return {
     type: typeof payload,
   }
+}
+
+function extractFirstUuid(value: unknown): string | null {
+  if (isUuid(value)) {
+    return value
+  }
+
+  if (typeof value === "string") {
+    const match = value.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}/i)
+    return match?.[0] ?? null
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const uuid = extractFirstUuid(item)
+      if (uuid) {
+        return uuid
+      }
+    }
+  }
+
+  if (value && typeof value === "object") {
+    for (const item of Object.values(value as Record<string, unknown>)) {
+      const uuid = extractFirstUuid(item)
+      if (uuid) {
+        return uuid
+      }
+    }
+  }
+
+  return null
 }
 
 function json(body: unknown, status = 200) {

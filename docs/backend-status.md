@@ -538,3 +538,5 @@ Diagnostico operacional:
   - `reason = invalid_call_id`;
   - a chamada existia no app, mas o payload chegou em formato diferente do esperado pela Edge Function;
   - versao 4 da Edge Function passou a aceitar `call_id`, `callId`, `body.call_id`, `body.callId` e payload stringificado, alem de registrar `payload_shape` em novas falhas.
+- em 24/05/2026 a versao 4 mostrou `payload_shape.keys = [call_id]`, mas ainda com `invalid_call_id`;
+  - versao 5 da Edge Function passou a procurar UUID valido dentro do valor de `call_id` e em qualquer valor aninhado do payload.
