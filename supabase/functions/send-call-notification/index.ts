@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
         target_type: call.target_type,
       },
       priority: "high",
-      channelId: "incoming-calls-v2",
+      channelId: "incoming-calls-v3",
       categoryId: "incoming_call",
     }))
 
