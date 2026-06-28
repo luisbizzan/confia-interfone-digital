@@ -94,6 +94,7 @@ Deno.serve(async (req) => {
     const expoMessages = recipients.map((recipient) => ({
       to: recipient.expo_push_token,
       sound: "default",
+      channelId: "deliveries-v1",
       title: notification.title,
       body: notification.body,
       data: {
@@ -286,6 +287,9 @@ async function sendNativeFcmNotifications(
       body: JSON.stringify({
         message: {
           android: {
+            notification: {
+              channel_id: "deliveries-v1",
+            },
             priority: "HIGH",
             ttl: "300s",
           },
