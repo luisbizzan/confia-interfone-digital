@@ -287,14 +287,10 @@ async function sendNativeFcmNotifications(
       body: JSON.stringify({
         message: {
           android: {
-            notification: {
-              channel_id: "deliveries-v1",
-            },
             priority: "HIGH",
             ttl: "300s",
           },
           data: message.data,
-          notification: message.notification,
           token: message.token,
         },
       }),
