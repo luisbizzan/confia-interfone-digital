@@ -55,3 +55,28 @@ entrypoint = "./functions/admin-create-unit-member/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/admin-get-condominium/index.ts"
+
+[functions.admin-push-diagnostics]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/admin-push-diagnostics/index.ts"
+
+[functions.send-call-notification]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-call-notification/index.ts"
+
+[functions.send-message-notification]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-message-notification/index.ts"
+
+[functions.send-delivery-notification]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/send-delivery-notification/index.ts"
+
+[functions.report-app-error]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/report-app-error/index.ts"
