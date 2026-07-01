@@ -47,12 +47,18 @@ Deno.serve(async (req) => {
     const userToken = authHeader?.replace(/^Bearer\s+/i, "")
 
     if (!userToken) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, null, "ERROR", {
+        reason: "missing_authorization",
+      }, "Unauthorized")
       return json({ error: "Unauthorized" }, 401)
     }
 
     const user = await fetchAuthenticatedUser(supabaseUrl, serviceRoleKey, userToken)
 
     if (!user?.id) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, null, "ERROR", {
+        reason: "invalid_authorization",
+      }, "Unauthorized")
       return json({ error: "Unauthorized" }, 401)
     }
 
@@ -60,20 +66,42 @@ Deno.serve(async (req) => {
     const deliveryId = extractDeliveryId(payload)
 
     if (!isUuid(deliveryId)) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        payload_shape: describePayload(payload),
+        reason: "invalid_delivery_id",
+      }, "Invalid delivery_id")
       return json({ error: "Invalid delivery_id" }, 400)
     }
 
     const delivery = await fetchDelivery(supabaseUrl, serviceRoleKey, deliveryId)
 
     if (!delivery) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        delivery_id: deliveryId,
+        reason: "delivery_not_found",
+      }, "Delivery not found")
       return json({ error: "Delivery not found" }, 404)
     }
 
     if (delivery.received_by_user_id !== user.id) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        delivery_id: delivery.id,
+        reason: "requester_is_not_receiver",
+        received_by_user_id: delivery.received_by_user_id,
+      }, "Forbidden")
       return json({ error: "Forbidden" }, 403)
     }
 
     const recipientUserIds = await fetchDeliveryRecipientUserIds(supabaseUrl, serviceRoleKey, delivery.id)
+
+    if (recipientUserIds.length === 0) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+        delivery_id: delivery.id,
+        reason: "no_recipients",
+      })
+      return json({ sent: 0, skipped: true, reason: "no_recipients" })
+    }
+
     const recipients = await fetchRecipientTokens(supabaseUrl, serviceRoleKey, recipientUserIds)
 
     if (recipients.length === 0) {
@@ -131,6 +159,15 @@ Deno.serve(async (req) => {
     return json({ sent: recipients.length, tickets })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown send-delivery-notification error"
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+
+    if (supabaseUrl && serviceRoleKey) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, null, "ERROR", {
+        reason: "unhandled_exception",
+      }, message)
+    }
+
     return json({ error: message }, 500)
   }
 })
@@ -445,6 +482,22 @@ function extractDeliveryId(payload: unknown) {
 
   const record = payload as Record<string, unknown>
   return record.delivery_id ?? record.deliveryId ?? null
+}
+
+function describePayload(payload: unknown) {
+  if (payload === null) {
+    return { type: "null" }
+  }
+
+  if (Array.isArray(payload)) {
+    return { length: payload.length, type: "array" }
+  }
+
+  if (typeof payload === "object") {
+    return { keys: Object.keys(payload as Record<string, unknown>), type: "object" }
+  }
+
+  return { type: typeof payload }
 }
 
 function json(body: unknown, status = 200) {
