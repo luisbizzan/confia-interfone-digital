@@ -1,0 +1,19 @@
+name: Delivery Notification Processor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  delivery-notifications:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call Supabase Function
+        run: |
+          curl --fail-with-body -X POST \
+          https://uvdwoisdcikzhqjwbhog.supabase.co/functions/v1/delivery-notification-processor \
+          -H "Content-Type: application/json" \
+          -H "x-cron-secret: ${{ secrets.SUPABASE_CRON_SECRET }}" \
+          -d '{}'

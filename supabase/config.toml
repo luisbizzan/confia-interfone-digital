@@ -76,6 +76,11 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-delivery-notification/index.ts"
 
+[functions.delivery-notification-processor]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/delivery-notification-processor/index.ts"
+
 [functions.report-app-error]
 enabled = true
 verify_jwt = false

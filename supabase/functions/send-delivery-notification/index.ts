@@ -1,6 +1,6 @@
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
 }
 
 type DeliveryRecord = {
@@ -44,19 +44,29 @@ Deno.serve(async (req) => {
       return json({ error: "Missing environment variables" }, 500)
     }
 
+    const cronSecret = Deno.env.get("CRON_SECRET")
+    const providedSecret = req.headers.get("x-cron-secret")
+    const isCronRequest = Boolean(cronSecret && providedSecret === cronSecret)
     const authHeader = req.headers.get("Authorization")
     const userToken = authHeader?.replace(/^Bearer\s+/i, "")
 
-    if (!userToken) {
+    if (!isCronRequest && !userToken) {
       await insertDiagnostic(supabaseUrl, serviceRoleKey, null, "ERROR", {
         reason: "missing_authorization",
       }, "Unauthorized")
       return json({ error: "Unauthorized" }, 401)
     }
 
-    const user = await fetchAuthenticatedUser(supabaseUrl, serviceRoleKey, userToken)
+    if (!isCronRequest && providedSecret && providedSecret !== cronSecret) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, null, "ERROR", {
+        reason: "invalid_cron_secret",
+      }, "Unauthorized")
+      return json({ error: "Unauthorized" }, 401)
+    }
 
-    if (!user?.id) {
+    const user = userToken ? await fetchAuthenticatedUser(supabaseUrl, serviceRoleKey, userToken) : null
+
+    if (!isCronRequest && !user?.id) {
       await insertDiagnostic(supabaseUrl, serviceRoleKey, null, "ERROR", {
         reason: "invalid_authorization",
       }, "Unauthorized")
@@ -70,20 +80,20 @@ Deno.serve(async (req) => {
     if (isUuid(deliveryId)) {
       delivery = await fetchDelivery(supabaseUrl, serviceRoleKey, deliveryId)
     } else {
-      delivery = await fetchLatestDeliveryForReceiver(supabaseUrl, serviceRoleKey, user.id)
+      delivery = user?.id ? await fetchLatestDeliveryForReceiver(supabaseUrl, serviceRoleKey, user.id) : null
 
       if (delivery) {
-        await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+        await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "SUCCESS", {
           fallback_delivery_id: delivery.id,
           payload_shape: describePayload(payload),
-          received_by_user_id: user.id,
+          received_by_user_id: user?.id ?? null,
           reason: "fallback_latest_delivery_for_receiver",
         })
       }
     }
 
     if (!isUuid(deliveryId) && !delivery) {
-      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "ERROR", {
         delivery_id_preview: describeValue(deliveryId),
         delivery_id_type: typeof deliveryId,
         payload_shape: describePayload(payload),
@@ -100,8 +110,8 @@ Deno.serve(async (req) => {
       return json({ error: "Delivery not found" }, 404)
     }
 
-    if (delivery.received_by_user_id !== user.id) {
-      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+    if (!isCronRequest && delivery.received_by_user_id !== user?.id) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "ERROR", {
         delivery_id: delivery.id,
         reason: "requester_is_not_receiver",
         received_by_user_id: delivery.received_by_user_id,
@@ -112,8 +122,10 @@ Deno.serve(async (req) => {
     const recipientUserIds = await fetchDeliveryRecipientUserIds(supabaseUrl, serviceRoleKey, delivery.id)
 
     if (recipientUserIds.length === 0) {
-      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+      await markDeliveryNotified(supabaseUrl, serviceRoleKey, delivery.id, recipientUserIds)
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "SUCCESS", {
         delivery_id: delivery.id,
+        is_cron_request: isCronRequest,
         reason: "no_recipients",
       })
       return json({ sent: 0, skipped: true, reason: "no_recipients" })
@@ -122,8 +134,10 @@ Deno.serve(async (req) => {
     const recipients = await fetchRecipientTokens(supabaseUrl, serviceRoleKey, recipientUserIds)
 
     if (recipients.length === 0) {
-      await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+      await markDeliveryNotified(supabaseUrl, serviceRoleKey, delivery.id, recipientUserIds)
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "SUCCESS", {
         delivery_id: delivery.id,
+        is_cron_request: isCronRequest,
         reason: "no_tokens",
         recipient_user_count: recipientUserIds.length,
       })
@@ -166,12 +180,13 @@ Deno.serve(async (req) => {
     const fcmResults = await sendNativeFcmNotifications(fcmMessages)
     const deactivatedNativeTokenIds = await deactivateInvalidNativeTokens(supabaseUrl, serviceRoleKey, fcmResults)
     await markDeliveryNotified(supabaseUrl, serviceRoleKey, delivery.id, recipientUserIds)
-    await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+    await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "SUCCESS", {
       deactivated_native_token_count: deactivatedNativeTokenIds.length,
       deactivated_native_token_ids: deactivatedNativeTokenIds,
       delivery_id: delivery.id,
       fcm_results: fcmResults,
       fcm_token_count: fcmMessages.length,
+      is_cron_request: isCronRequest,
       recipient_user_count: recipientUserIds.length,
       sent_token_count: recipients.length,
       tickets,
@@ -286,36 +301,17 @@ async function fetchUnitLabel(supabaseUrl: string, serviceRoleKey: string, unitI
 }
 
 async function markDeliveryNotified(supabaseUrl: string, serviceRoleKey: string, deliveryId: string, userIds: string[]) {
-  const now = new Date().toISOString()
-
-  await fetch(`${supabaseUrl}/rest/v1/deliveries?id=eq.${deliveryId}`, {
-    method: "PATCH",
-    headers: {
-      ...serviceHeaders(serviceRoleKey),
-      "Prefer": "return=minimal",
-    },
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/mark_delivery_notification_attempt`, {
+    method: "POST",
+    headers: serviceHeaders(serviceRoleKey),
     body: JSON.stringify({
-      first_notified_at: now,
-      last_notified_at: now,
-      next_notification_at: null,
-      notification_count: 1,
-      status: "NOTIFIED",
-      updated_at: now,
+      p_delivery_id: deliveryId,
+      p_user_ids: userIds.length > 0 ? userIds : null,
     }),
-  }).catch(() => null)
+  })
 
-  if (userIds.length > 0) {
-    await fetch(`${supabaseUrl}/rest/v1/delivery_recipients?delivery_id=eq.${deliveryId}&user_id=in.(${userIds.join(",")})`, {
-      method: "PATCH",
-      headers: {
-        ...serviceHeaders(serviceRoleKey),
-        "Prefer": "return=minimal",
-      },
-      body: JSON.stringify({
-        notified_at: now,
-        notification_count: 1,
-      }),
-    }).catch(() => null)
+  if (!response.ok) {
+    throw new Error(`Failed to mark delivery notification: ${response.status} ${await response.text()}`)
   }
 }
 
