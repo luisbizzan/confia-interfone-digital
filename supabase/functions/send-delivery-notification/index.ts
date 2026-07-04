@@ -15,6 +15,7 @@ type DeliveryRecord = {
 
 type PushTokenRow = {
   expo_push_token: string
+  id: string
   native_push_provider: string | null
   native_push_token: string | null
   user_id: string
@@ -64,16 +65,32 @@ Deno.serve(async (req) => {
 
     const payload = await req.json().catch(() => null)
     const deliveryId = extractDeliveryId(payload)
+    let delivery: DeliveryRecord | null = null
 
-    if (!isUuid(deliveryId)) {
+    if (isUuid(deliveryId)) {
+      delivery = await fetchDelivery(supabaseUrl, serviceRoleKey, deliveryId)
+    } else {
+      delivery = await fetchLatestDeliveryForReceiver(supabaseUrl, serviceRoleKey, user.id)
+
+      if (delivery) {
+        await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+          fallback_delivery_id: delivery.id,
+          payload_shape: describePayload(payload),
+          received_by_user_id: user.id,
+          reason: "fallback_latest_delivery_for_receiver",
+        })
+      }
+    }
+
+    if (!isUuid(deliveryId) && !delivery) {
       await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
+        delivery_id_preview: describeValue(deliveryId),
+        delivery_id_type: typeof deliveryId,
         payload_shape: describePayload(payload),
         reason: "invalid_delivery_id",
       }, "Invalid delivery_id")
       return json({ error: "Invalid delivery_id" }, 400)
     }
-
-    const delivery = await fetchDelivery(supabaseUrl, serviceRoleKey, deliveryId)
 
     if (!delivery) {
       await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "ERROR", {
@@ -135,6 +152,7 @@ Deno.serve(async (req) => {
       .filter((recipient) => isFcmProvider(recipient.native_push_provider) && recipient.native_push_token)
       .map((recipient) => ({
         token: recipient.native_push_token as string,
+        token_id: recipient.id,
         notification,
         data: {
           body: notification.body,
@@ -146,8 +164,11 @@ Deno.serve(async (req) => {
 
     const tickets = await sendExpoPushNotifications(expoMessages)
     const fcmResults = await sendNativeFcmNotifications(fcmMessages)
+    const deactivatedNativeTokenIds = await deactivateInvalidNativeTokens(supabaseUrl, serviceRoleKey, fcmResults)
     await markDeliveryNotified(supabaseUrl, serviceRoleKey, delivery.id, recipientUserIds)
     await insertDiagnostic(supabaseUrl, serviceRoleKey, user.id, "SUCCESS", {
+      deactivated_native_token_count: deactivatedNativeTokenIds.length,
+      deactivated_native_token_ids: deactivatedNativeTokenIds,
       delivery_id: delivery.id,
       fcm_results: fcmResults,
       fcm_token_count: fcmMessages.length,
@@ -201,6 +222,25 @@ async function fetchDelivery(supabaseUrl: string, serviceRoleKey: string, delive
   return rows?.[0] ?? null
 }
 
+async function fetchLatestDeliveryForReceiver(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  receivedByUserId: string,
+): Promise<DeliveryRecord | null> {
+  const select = "id,condominium_id,unit_id,status,package_source,package_description,received_by_user_id"
+  const response = await fetch(
+    `${supabaseUrl}/rest/v1/deliveries?received_by_user_id=eq.${receivedByUserId}&select=${select}&order=received_at.desc&limit=1`,
+    { headers: serviceHeaders(serviceRoleKey) },
+  )
+
+  if (!response.ok) {
+    return null
+  }
+
+  const rows = await response.json()
+  return rows?.[0] ?? null
+}
+
 async function fetchDeliveryRecipientUserIds(supabaseUrl: string, serviceRoleKey: string, deliveryId: string) {
   const response = await fetch(`${supabaseUrl}/rest/v1/delivery_recipients?delivery_id=eq.${deliveryId}&select=user_id`, {
     headers: serviceHeaders(serviceRoleKey),
@@ -220,7 +260,7 @@ async function fetchRecipientTokens(supabaseUrl: string, serviceRoleKey: string,
   }
 
   const response = await fetch(
-    `${supabaseUrl}/rest/v1/app_push_tokens?user_id=in.(${userIds.join(",")})&is_active=eq.true&select=expo_push_token,native_push_token,native_push_provider,user_id`,
+    `${supabaseUrl}/rest/v1/app_push_tokens?user_id=in.(${userIds.join(",")})&is_active=eq.true&select=id,expo_push_token,native_push_token,native_push_provider,user_id`,
     { headers: serviceHeaders(serviceRoleKey) },
   )
 
@@ -298,9 +338,14 @@ async function sendExpoPushNotifications(messages: unknown[]) {
   return response.json()
 }
 
-async function sendNativeFcmNotifications(
-  messages: Array<{ token: string; notification: { title: string; body: string }; data: Record<string, string> }>,
-) {
+type NativeFcmMessage = {
+  data: Record<string, string>
+  notification: { title: string; body: string }
+  token: string
+  token_id?: string
+}
+
+async function sendNativeFcmNotifications(messages: NativeFcmMessage[]) {
   if (messages.length === 0) {
     return { skipped: true, reason: "no_native_tokens" }
   }
@@ -324,10 +369,17 @@ async function sendNativeFcmNotifications(
       body: JSON.stringify({
         message: {
           android: {
+            notification: {
+              channelId: "deliveries-v1",
+              defaultSound: true,
+              defaultVibrateTimings: true,
+              notificationPriority: "PRIORITY_HIGH",
+            },
             priority: "HIGH",
             ttl: "300s",
           },
           data: message.data,
+          notification: message.notification,
           token: message.token,
         },
       }),
@@ -338,11 +390,50 @@ async function sendNativeFcmNotifications(
       body,
       ok: response.ok,
       status: response.status,
+      token_id: message.token_id,
       token_prefix: message.token.slice(0, 12),
     })
   }
 
   return results
+}
+
+async function deactivateInvalidNativeTokens(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  results: Array<{ body: unknown; ok: boolean; status: number; token_id?: string }>,
+) {
+  const tokenIds = results
+    .filter((result) => !result.ok && result.token_id && isInvalidNativeTokenResult(result))
+    .map((result) => result.token_id as string)
+
+  const uniqueTokenIds = Array.from(new Set(tokenIds))
+
+  if (uniqueTokenIds.length === 0) {
+    return []
+  }
+
+  await fetch(`${supabaseUrl}/rest/v1/app_push_tokens?id=in.(${uniqueTokenIds.join(",")})`, {
+    method: "PATCH",
+    headers: {
+      ...serviceHeaders(serviceRoleKey),
+      "Prefer": "return=minimal",
+    },
+    body: JSON.stringify({
+      is_active: false,
+      updated_at: new Date().toISOString(),
+    }),
+  }).catch(() => null)
+
+  return uniqueTokenIds
+}
+
+function isInvalidNativeTokenResult(result: { body: unknown; status: number }) {
+  const error = typeof result.body === "object" && result.body !== null
+    ? (result.body as { error?: { status?: string } }).error
+    : null
+
+  return result.status === 404 || error?.status === "UNREGISTERED" || error?.status === "INVALID_ARGUMENT"
 }
 
 function getFirebaseServiceAccount(): FirebaseServiceAccount | null {
@@ -471,7 +562,7 @@ function serviceHeaders(serviceRoleKey: string) {
   }
 }
 
-function isUuid(value: unknown) {
+function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{12}$/i.test(value)
 }
 
@@ -481,6 +572,13 @@ function extractDeliveryId(payload: unknown) {
   }
 
   const record = payload as Record<string, unknown>
+  const nestedDelivery = record.delivery
+
+  if (nestedDelivery && typeof nestedDelivery === "object") {
+    const nested = nestedDelivery as Record<string, unknown>
+    return record.delivery_id ?? record.deliveryId ?? nested.id ?? null
+  }
+
   return record.delivery_id ?? record.deliveryId ?? null
 }
 
@@ -498,6 +596,22 @@ function describePayload(payload: unknown) {
   }
 
   return { type: typeof payload }
+}
+
+function describeValue(value: unknown) {
+  if (typeof value === "string") {
+    return value.length > 80 ? `${value.slice(0, 77)}...` : value
+  }
+
+  if (value === null || value === undefined) {
+    return String(value)
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(describePayload(value))
+  }
+
+  return String(value)
 }
 
 function json(body: unknown, status = 200) {
