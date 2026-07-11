@@ -134,14 +134,13 @@ Deno.serve(async (req) => {
     const recipients = await fetchRecipientTokens(supabaseUrl, serviceRoleKey, recipientUserIds)
 
     if (recipients.length === 0) {
-      await markDeliveryNotified(supabaseUrl, serviceRoleKey, delivery.id, recipientUserIds)
-      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "SUCCESS", {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "ERROR", {
         delivery_id: delivery.id,
         is_cron_request: isCronRequest,
         reason: "no_tokens",
         recipient_user_count: recipientUserIds.length,
-      })
-      return json({ sent: 0, skipped: true, reason: "no_tokens" })
+      }, "No active push tokens for delivery recipients")
+      return json({ error: "No active push tokens for delivery recipients", sent: 0, skipped: true, reason: "no_tokens" }, 424)
     }
 
     const unitLabel = await fetchUnitLabel(supabaseUrl, serviceRoleKey, delivery.unit_id)
@@ -150,18 +149,20 @@ Deno.serve(async (req) => {
       title: `Encomenda para ${unitLabel}`,
       body: body.length > 110 ? `${body.slice(0, 107)}...` : body,
     }
-    const expoMessages = recipients.map((recipient) => ({
-      to: recipient.expo_push_token,
-      sound: "default",
-      channelId: "deliveries-v1",
-      title: notification.title,
-      body: notification.body,
-      data: {
-        delivery_id: delivery.id,
-        kind: "delivery",
-      },
-      priority: "high",
-    }))
+    const expoMessages = recipients
+      .filter((recipient) => typeof recipient.expo_push_token === "string" && recipient.expo_push_token.trim().length > 0)
+      .map((recipient) => ({
+        to: recipient.expo_push_token,
+        sound: "default",
+        channelId: "deliveries-v1",
+        title: notification.title,
+        body: notification.body,
+        data: {
+          delivery_id: delivery.id,
+          kind: "delivery",
+        },
+        priority: "high",
+      }))
     const fcmMessages = recipients
       .filter((recipient) => isFcmProvider(recipient.native_push_provider) && recipient.native_push_token)
       .map((recipient) => ({
@@ -179,20 +180,55 @@ Deno.serve(async (req) => {
     const tickets = await sendExpoPushNotifications(expoMessages)
     const fcmResults = await sendNativeFcmNotifications(fcmMessages)
     const deactivatedNativeTokenIds = await deactivateInvalidNativeTokens(supabaseUrl, serviceRoleKey, fcmResults)
+    const expoSuccessCount = countExpoSuccess(tickets)
+    const fcmSuccessCount = countFcmSuccess(fcmResults)
+    const attemptedTokenCount = expoMessages.length + fcmMessages.length
+    const successfulTokenCount = expoSuccessCount + fcmSuccessCount
+
+    if (attemptedTokenCount === 0) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "ERROR", {
+        delivery_id: delivery.id,
+        is_cron_request: isCronRequest,
+        recipient_user_count: recipientUserIds.length,
+        reason: "no_sendable_tokens",
+        token_rows: recipients.length,
+      }, "Recipients have no sendable Expo or native FCM tokens")
+      return json({ error: "Recipients have no sendable push tokens", sent: 0, skipped: true, reason: "no_sendable_tokens" }, 424)
+    }
+
+    if (successfulTokenCount === 0) {
+      await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "ERROR", {
+        deactivated_native_token_count: deactivatedNativeTokenIds.length,
+        deactivated_native_token_ids: deactivatedNativeTokenIds,
+        delivery_id: delivery.id,
+        expo_success_count: expoSuccessCount,
+        fcm_results: fcmResults,
+        fcm_success_count: fcmSuccessCount,
+        fcm_token_count: fcmMessages.length,
+        is_cron_request: isCronRequest,
+        recipient_user_count: recipientUserIds.length,
+        reason: "no_push_success",
+        tickets,
+      }, "Delivery push notification was attempted but no token accepted it")
+      return json({ error: "Delivery push notification failed for all tokens", sent: 0, reason: "no_push_success" }, 424)
+    }
+
     await markDeliveryNotified(supabaseUrl, serviceRoleKey, delivery.id, recipientUserIds)
     await insertDiagnostic(supabaseUrl, serviceRoleKey, user?.id ?? null, "SUCCESS", {
       deactivated_native_token_count: deactivatedNativeTokenIds.length,
       deactivated_native_token_ids: deactivatedNativeTokenIds,
       delivery_id: delivery.id,
+      expo_success_count: expoSuccessCount,
       fcm_results: fcmResults,
+      fcm_success_count: fcmSuccessCount,
       fcm_token_count: fcmMessages.length,
       is_cron_request: isCronRequest,
       recipient_user_count: recipientUserIds.length,
-      sent_token_count: recipients.length,
+      sent_token_count: successfulTokenCount,
       tickets,
     })
 
-    return json({ sent: recipients.length, tickets })
+    return json({ sent: successfulTokenCount, tickets })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown send-delivery-notification error"
     const supabaseUrl = Deno.env.get("SUPABASE_URL")
@@ -316,6 +352,10 @@ async function markDeliveryNotified(supabaseUrl: string, serviceRoleKey: string,
 }
 
 async function sendExpoPushNotifications(messages: unknown[]) {
+  if (messages.length === 0) {
+    return { skipped: true, reason: "no_expo_messages" }
+  }
+
   const response = await fetch("https://exp.host/--/api/v2/push/send", {
     method: "POST",
     headers: {
@@ -332,6 +372,31 @@ async function sendExpoPushNotifications(messages: unknown[]) {
   }
 
   return response.json()
+}
+
+function countExpoSuccess(tickets: unknown) {
+  const items = Array.isArray(tickets)
+    ? tickets
+    : tickets && typeof tickets === "object" && Array.isArray((tickets as { data?: unknown[] }).data)
+      ? (tickets as { data: unknown[] }).data
+      : []
+
+  return items.filter((ticket) => {
+    if (!ticket || typeof ticket !== "object") {
+      return false
+    }
+
+    const status = (ticket as { status?: string }).status
+    return status === "ok"
+  }).length
+}
+
+function countFcmSuccess(results: unknown) {
+  if (!Array.isArray(results)) {
+    return 0
+  }
+
+  return results.filter((result) => Boolean((result as { ok?: boolean })?.ok)).length
 }
 
 type NativeFcmMessage = {
@@ -397,9 +462,14 @@ async function sendNativeFcmNotifications(messages: NativeFcmMessage[]) {
 async function deactivateInvalidNativeTokens(
   supabaseUrl: string,
   serviceRoleKey: string,
-  results: Array<{ body: unknown; ok: boolean; status: number; token_id?: string }>,
+  results: unknown,
 ) {
-  const tokenIds = results
+  if (!Array.isArray(results)) {
+    return []
+  }
+
+  const typedResults = results as Array<{ body: unknown; ok: boolean; status: number; token_id?: string }>
+  const tokenIds = typedResults
     .filter((result) => !result.ok && result.token_id && isInvalidNativeTokenResult(result))
     .map((result) => result.token_id as string)
 

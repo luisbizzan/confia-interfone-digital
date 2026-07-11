@@ -61,6 +61,14 @@ Deno.serve(async (req) => {
     }
   }
 
+  const failedResults = results.filter((result) => !result.notified)
+  await insertDiagnostic(supabaseUrl, serviceRoleKey, null, failedResults.length > 0 ? "ERROR" : "SUCCESS", {
+    due: dueDeliveries.length,
+    failed: failedResults.length,
+    processed: results.length,
+    results: results.slice(0, 25),
+  }, failedResults.length > 0 ? "One or more due delivery notifications failed" : null)
+
   return json({
     due: dueDeliveries.length,
     processed: results.length,
