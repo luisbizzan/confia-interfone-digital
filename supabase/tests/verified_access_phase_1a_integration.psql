@@ -1,0 +1,293 @@
+\set ON_ERROR_STOP on
+
+begin;
+
+insert into public.roles (id, name)
+values ('11111111-1111-1111-1111-111111111111', 'VERIFIED_ACCESS_TEST_ROLE')
+on conflict (name) do update
+  set name = excluded.name;
+
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values
+  ('33333333-aaaa-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'verified-access-a@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('33333333-bbbb-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'verified-access-b@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now())
+on conflict (id) do nothing;
+
+insert into public.condominiums (id, name, document)
+values
+  ('11111111-aaaa-4000-8000-000000000001', 'Verified Access Test A', 'VA-A'),
+  ('11111111-bbbb-4000-8000-000000000001', 'Verified Access Test B', 'VA-B')
+on conflict (id) do nothing;
+
+insert into public.units (id, condominium_id, type, block, number)
+values
+  ('22222222-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', 'APARTMENT', 'A', '101'),
+  ('22222222-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', 'APARTMENT', 'B', '202')
+on conflict (id) do nothing;
+
+insert into public.user_profiles (id, condominium_id, role_id)
+values
+  ('33333333-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '11111111-1111-1111-1111-111111111111'),
+  ('33333333-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '11111111-1111-1111-1111-111111111111')
+on conflict (id) do update
+  set condominium_id = excluded.condominium_id,
+      role_id = excluded.role_id;
+
+insert into public.verified_access_policies (
+  id,
+  condominium_id,
+  version,
+  status,
+  visitor_identity_mode,
+  service_identity_mode,
+  visitor_background_mode,
+  service_background_mode,
+  privacy_approval_reference,
+  content_checksum
+)
+values
+  ('44444444-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', 'privacy-a', repeat('a', 64)),
+  ('44444444-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', 'privacy-b', repeat('b', 64));
+
+insert into public.verified_access_requests (
+  id,
+  condominium_id,
+  unit_id,
+  requested_by_user_id,
+  request_type,
+  starts_at,
+  ends_at,
+  timezone,
+  participant_limit,
+  policy_id,
+  policy_version
+)
+values
+  ('55555555-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'SERVICE_PROVIDER', now(), now() + interval '1 day', 'America/Sao_Paulo', 2, '44444444-aaaa-4000-8000-000000000001', 1),
+  ('55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '22222222-bbbb-4000-8000-000000000001', '33333333-bbbb-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-bbbb-4000-8000-000000000001', 1);
+
+insert into public.verified_access_participant_slots (id, condominium_id, request_id, slot_number, status, claimed_at)
+values
+  ('66666666-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 1, 'OPEN', null),
+  ('66666666-aaaa-4000-8000-000000000002', '11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 2, 'RESERVED', now()),
+  ('66666666-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 1, 'OPEN', null);
+
+insert into public.verified_access_identity_profiles (
+  id,
+  condominium_id,
+  cpf_ciphertext,
+  cpf_tenant_hmac,
+  document_type,
+  document_number_ciphertext,
+  document_number_tenant_hmac,
+  phone_ciphertext,
+  phone_tenant_hmac,
+  full_name_ciphertext,
+  encryption_key_version,
+  hmac_key_version
+)
+values
+  ('77777777-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '\x01'::bytea, repeat('a', 32), 'CPF', '\x02'::bytea, repeat('c', 32), '\x03'::bytea, repeat('e', 32), '\x04'::bytea, 1, 1),
+  ('77777777-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '\x05'::bytea, repeat('b', 32), 'CPF', '\x06'::bytea, repeat('d', 32), '\x07'::bytea, repeat('f', 32), '\x08'::bytea, 1, 1);
+
+insert into public.verified_access_participants (
+  id,
+  condominium_id,
+  request_id,
+  slot_id,
+  identity_profile_id,
+  registration_status,
+  identity_status,
+  background_status,
+  network_status,
+  eligibility_status
+)
+values
+  ('88888888-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-aaaa-4000-8000-000000000001', '77777777-aaaa-4000-8000-000000000001', 'SUBMITTED', 'SELF_DECLARED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING'),
+  ('88888888-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', '66666666-bbbb-4000-8000-000000000001', '77777777-bbbb-4000-8000-000000000001', 'SUBMITTED', 'SELF_DECLARED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING');
+
+insert into public.verified_access_service_request_details (
+  request_id,
+  condominium_id,
+  service_type_id,
+  other_description
+)
+select '55555555-aaaa-4000-8000-000000000001',
+       '11111111-aaaa-4000-8000-000000000001',
+       id,
+       'Synthetic maintenance'
+from public.verified_access_service_types
+where code = 'OTHER';
+
+insert into public.verified_access_eligibility_evaluations (
+  condominium_id,
+  request_id,
+  participant_id,
+  policy_id,
+  policy_version,
+  input_identity_status,
+  input_background_status,
+  input_network_status,
+  outcome,
+  decision_source,
+  actor_type,
+  input_snapshot_sanitized,
+  metadata
+)
+values (
+  '11111111-aaaa-4000-8000-000000000001',
+  '55555555-aaaa-4000-8000-000000000001',
+  '88888888-aaaa-4000-8000-000000000001',
+  '44444444-aaaa-4000-8000-000000000001',
+  1,
+  'SELF_DECLARED',
+  'NOT_REQUIRED',
+  'NOT_ENABLED',
+  'REVIEW_REQUIRED',
+  'SYSTEM_RULES',
+  'SYSTEM',
+  '{"statuses":["SELF_DECLARED","NOT_REQUIRED"]}'::jsonb,
+  '{"reason_code":"fixture"}'::jsonb
+);
+
+create or replace function pg_temp.expect_error(p_sql text, p_expected_sqlstate text, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  execute p_sql;
+  raise exception 'Expected % for %', p_expected_sqlstate, p_label
+    using errcode = 'ZX001';
+exception
+  when others then
+    if sqlstate <> p_expected_sqlstate then
+      raise exception 'Expected %, got % for %', p_expected_sqlstate, sqlstate, p_label;
+    end if;
+end;
+$$;
+
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, network_signal_rules) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), '{"effect":"auto_deny_network"}'::jsonb)$$, '23514', 'forbidden network auto deny');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, retention_settings) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), '[]'::jsonb)$$, '23514', 'policy retention json must be object');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, visitor_background_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), 'REQUIRED')$$, '23514', 'background mode requires approval reference');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, network_identity_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), 'EVALUATE_ONLY')$$, '23514', 'network mode requires approval reference');
+
+select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-bbbb-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-aaaa-4000-8000-000000000001', 1)$$, '23503', 'cross-tenant request unit');
+select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-bbbb-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-aaaa-4000-8000-000000000001', 1)$$, '23503', 'cross-tenant request requester');
+select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-bbbb-4000-8000-000000000001', 1)$$, '23503', 'cross-tenant request policy');
+select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-aaaa-4000-8000-000000000001', 2)$$, '23503', 'request policy version mismatch');
+select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'VISITOR', now() + interval '1 day', now(), 'America/Sao_Paulo', 1, '44444444-aaaa-4000-8000-000000000001', 1)$$, '23514', 'invalid request period');
+
+select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 3)$$, 'P0001', 'slot above capacity');
+select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 1)$$, '23505', 'duplicate slot');
+select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number) values ('11111111-aaaa-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 1)$$, '23503', 'cross-tenant slot request');
+select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number, status, claimed_at) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 2, 'OPEN', now())$$, '23514', 'open slot cannot have claimed_at');
+select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number, status) values ('11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 2, 'RESERVED')$$, '23514', 'reserved slot requires claimed_at');
+
+select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'OTHER'$$, 'P0001', 'OTHER without description');
+select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'detail for visitor');
+select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, '23503', 'cross-tenant detail request');
+
+select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-bbbb-4000-8000-000000000001', '77777777-aaaa-4000-8000-000000000001')$$, '23503', 'participant slot from other tenant/request');
+select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-aaaa-4000-8000-000000000002', '77777777-bbbb-4000-8000-000000000001')$$, '23503', 'participant profile from other tenant');
+
+select pg_temp.expect_error($$insert into public.verified_access_eligibility_evaluations (condominium_id, request_id, participant_id, policy_id, policy_version, input_identity_status, input_background_status, outcome, decision_source) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '88888888-bbbb-4000-8000-000000000001', '44444444-aaaa-4000-8000-000000000001', 1, 'SELF_DECLARED', 'NOT_REQUIRED', 'REVIEW_REQUIRED', 'SYSTEM_RULES')$$, '23503', 'evaluation participant from other request');
+select pg_temp.expect_error($$insert into public.verified_access_eligibility_evaluations (condominium_id, request_id, participant_id, policy_id, policy_version, input_identity_status, input_background_status, outcome, decision_source) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '88888888-aaaa-4000-8000-000000000001', '44444444-aaaa-4000-8000-000000000001', 2, 'SELF_DECLARED', 'NOT_REQUIRED', 'REVIEW_REQUIRED', 'SYSTEM_RULES')$$, '23503', 'evaluation policy version mismatch');
+select pg_temp.expect_error($$insert into public.verified_access_eligibility_evaluations (condominium_id, request_id, participant_id, policy_id, policy_version, input_identity_status, input_background_status, outcome, decision_source, metadata) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '88888888-aaaa-4000-8000-000000000001', '44444444-aaaa-4000-8000-000000000001', 1, 'SELF_DECLARED', 'NOT_REQUIRED', 'REVIEW_REQUIRED', 'SYSTEM_RULES', '[]'::jsonb)$$, '23514', 'evaluation metadata must be object');
+
+insert into public.verified_access_outbox_events (
+  condominium_id,
+  aggregate_type,
+  aggregate_id,
+  event_type,
+  deduplication_key,
+  payload
+)
+values (
+  '11111111-aaaa-4000-8000-000000000001',
+  'REQUEST',
+  '55555555-aaaa-4000-8000-000000000001',
+  'REQUEST_CREATED',
+  'verified-access-test-dedup',
+  '{"event":"created","nested":{"codes":["A"]}}'::jsonb
+);
+
+update public.verified_access_outbox_events
+set status = 'PROCESSING',
+    attempts = attempts + 1,
+    locked_at = now(),
+    locked_by = 'ci',
+    next_attempt_at = now() + interval '5 minutes',
+    last_error_code = null,
+    updated_at = now()
+where deduplication_key = 'verified-access-test-dedup';
+
+select pg_temp.expect_error($$insert into public.verified_access_outbox_events (condominium_id, aggregate_type, aggregate_id, event_type, deduplication_key, payload) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED', 'verified-access-test-dedup', '{"event":"created"}'::jsonb)$$, '23505', 'duplicate outbox key');
+select pg_temp.expect_error($$insert into public.verified_access_outbox_events (condominium_id, aggregate_type, aggregate_id, event_type, deduplication_key, payload) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED', 'verified-access-token-test', '{"nested":{"Token":"secret"}}'::jsonb)$$, '23514', 'outbox token alias payload');
+select pg_temp.expect_error($$insert into public.verified_access_outbox_events (condominium_id, aggregate_type, aggregate_id, event_type, deduplication_key, payload) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED', 'verified-access-array-test', '[]'::jsonb)$$, '23514', 'outbox payload object only');
+select pg_temp.expect_error($$update public.verified_access_outbox_events set payload = '{"event":"mutated"}'::jsonb where deduplication_key = 'verified-access-test-dedup'$$, 'P0001', 'outbox business payload immutable');
+
+insert into public.verified_access_audit_events (
+  id,
+  condominium_id,
+  aggregate_type,
+  aggregate_id,
+  event_type,
+  metadata
+)
+values (
+  '99999999-aaaa-4000-8000-000000000001',
+  '11111111-aaaa-4000-8000-000000000001',
+  'REQUEST',
+  '55555555-aaaa-4000-8000-000000000001',
+  'REQUEST_CREATED',
+  '{"event":"created"}'::jsonb
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_audit_events (condominium_id, aggregate_type, aggregate_id, event_type, metadata) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED', '{"alias":{"doc_number":"00000000000"}}'::jsonb)$$, '23514', 'audit document alias metadata');
+select pg_temp.expect_error($$insert into public.verified_access_audit_events (condominium_id, aggregate_type, aggregate_id, event_type, metadata) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED', '[]'::jsonb)$$, '23514', 'audit metadata object only');
+select pg_temp.expect_error($$update public.verified_access_audit_events set metadata = '{"event":"mutated"}'::jsonb where id = '99999999-aaaa-4000-8000-000000000001'$$, 'P0001', 'audit update blocked');
+select pg_temp.expect_error($$delete from public.verified_access_audit_events where id = '99999999-aaaa-4000-8000-000000000001'$$, 'P0001', 'audit delete blocked');
+select pg_temp.expect_error($$truncate public.verified_access_audit_events$$, 'P0001', 'audit truncate blocked');
+
+set local role anon;
+select pg_temp.expect_error($$select count(*) from public.verified_access_requests$$, '42501', 'anon cannot read');
+select pg_temp.expect_error($$insert into public.verified_access_audit_events (condominium_id, aggregate_type, aggregate_id, event_type) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED')$$, '42501', 'anon cannot write');
+reset role;
+
+set local role authenticated;
+select pg_temp.expect_error($$select count(*) from public.verified_access_identity_profiles$$, '42501', 'authenticated cannot read sensitive tables directly');
+select pg_temp.expect_error($$insert into public.verified_access_audit_events (condominium_id, aggregate_type, aggregate_id, event_type) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED')$$, '42501', 'authenticated cannot write');
+reset role;
+
+set local role service_role;
+select count(*) from public.verified_access_requests;
+insert into public.verified_access_audit_events (
+  condominium_id,
+  aggregate_type,
+  aggregate_id,
+  event_type,
+  metadata
+)
+values (
+  '11111111-aaaa-4000-8000-000000000001',
+  'REQUEST',
+  '55555555-aaaa-4000-8000-000000000001',
+  'SERVICE_ROLE_TEST',
+  '{"event":"service_role_insert"}'::jsonb
+);
+select pg_temp.expect_error($$delete from public.verified_access_requests where id = '55555555-aaaa-4000-8000-000000000001'$$, '42501', 'service_role cannot delete requests');
+reset role;
+
+rollback;

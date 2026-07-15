@@ -1,0 +1,108 @@
+name: Verified Access Phase 1A
+
+on:
+  push:
+    branches:
+      - agent/verified-access-phase-1a-r
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "supabase/rollback/**"
+      - ".github/workflows/verified-access-phase-1a.yml"
+      - "docs/verified-access-phase-1a*"
+      - "docs/adr/20260714-verified-access-local-foundation.md"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Start Supabase local stack
+        run: npx supabase start
+
+      - name: Apply migrations from scratch
+        run: npx supabase db reset
+
+      - name: Run pgTAP database tests
+        run: npx supabase test db
+
+      - name: Run integration SQL scenarios
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1a_integration.psql
+
+      - name: Run Supabase database lint
+        run: npx supabase db lint
+
+      - name: Roll back Phase 1A objects
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rollback/20260714100000_verified_access_phase_1a_rollback.sql
+
+      - name: Verify rollback scope
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if exists (
+              select 1
+              from pg_class c
+              join pg_namespace n on n.oid = c.relnamespace
+              where n.nspname = 'public'
+                and c.relname like 'verified_access_%'
+            ) then
+              raise exception 'rollback left verified_access objects behind';
+            end if;
+
+            if to_regclass('public.persons') is null then
+              raise exception 'rollback removed public.persons';
+            end if;
+
+            if not exists (select 1 from public.roles where name = 'INTERCOM') then
+              raise exception 'rollback removed INTERCOM role';
+            end if;
+
+            if to_regclass('public.ux_units_id_condominium_id') is not null then
+              raise exception 'rollback left ux_units_id_condominium_id behind';
+            end if;
+
+            if to_regclass('public.ux_user_profiles_id_condominium_id') is not null then
+              raise exception 'rollback left ux_user_profiles_id_condominium_id behind';
+            end if;
+          end $$;
+          SQL
+
+      - name: Reapply migrations
+        run: npx supabase db reset
+
+      - name: Re-run pgTAP smoke tests after reapply
+        run: npx supabase test db
+
+      - name: Lint admin web
+        run: npm run admin:lint
+
+      - name: Build admin web
+        run: npm run admin:build
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: npx supabase stop --no-backup
