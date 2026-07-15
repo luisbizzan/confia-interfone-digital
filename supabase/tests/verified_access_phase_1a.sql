@@ -87,6 +87,70 @@ select is_empty(
   'no direct verified_access grants for public roles'
 );
 
+select ok(
+  not has_table_privilege(role_name, format('public.%I', table_name), privilege_name),
+  format('%s has no direct %s on %s', role_name, privilege_name, table_name)
+)
+from (
+  select *
+  from (
+    values
+      ('anon'),
+      ('authenticated'),
+      ('PUBLIC')
+  ) as roles(role_name)
+  cross join (
+    values
+      ('verified_access_service_types'),
+      ('verified_access_condominium_service_types'),
+      ('verified_access_policies'),
+      ('verified_access_requests'),
+      ('verified_access_service_request_details'),
+      ('verified_access_participant_slots'),
+      ('verified_access_identity_profiles'),
+      ('verified_access_participants'),
+      ('verified_access_eligibility_evaluations'),
+      ('verified_access_outbox_events'),
+      ('verified_access_audit_events')
+  ) as tables(table_name)
+  cross join (
+    values
+      ('SELECT'),
+      ('INSERT'),
+      ('UPDATE'),
+      ('DELETE'),
+      ('TRUNCATE')
+  ) as privileges(privilege_name)
+) matrix;
+
+select is(
+  has_table_privilege('service_role', format('public.%I', table_name), privilege_name),
+  expected,
+  format('service_role %s on %s = %s', privilege_name, table_name, expected)
+)
+from (
+  values
+    ('verified_access_service_types', true, true, true, false, false),
+    ('verified_access_condominium_service_types', true, true, true, false, false),
+    ('verified_access_policies', true, true, true, false, false),
+    ('verified_access_requests', true, true, true, false, false),
+    ('verified_access_service_request_details', true, true, true, false, false),
+    ('verified_access_participant_slots', true, true, true, false, false),
+    ('verified_access_identity_profiles', true, true, true, false, false),
+    ('verified_access_participants', true, true, true, false, false),
+    ('verified_access_eligibility_evaluations', true, true, false, false, false),
+    ('verified_access_outbox_events', true, true, true, false, false),
+    ('verified_access_audit_events', true, true, false, false, false)
+) as grants(table_name, can_select, can_insert, can_update, can_delete, can_truncate)
+cross join lateral (
+  values
+    ('SELECT', can_select),
+    ('INSERT', can_insert),
+    ('UPDATE', can_update),
+    ('DELETE', can_delete),
+    ('TRUNCATE', can_truncate)
+) as privileges(privilege_name, expected);
+
 select is_empty(
   $$select 1
     from information_schema.role_routine_grants

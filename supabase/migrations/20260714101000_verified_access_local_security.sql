@@ -22,6 +22,18 @@ revoke all on table public.verified_access_eligibility_evaluations from public, 
 revoke all on table public.verified_access_outbox_events from public, anon, authenticated;
 revoke all on table public.verified_access_audit_events from public, anon, authenticated;
 
+revoke all on table public.verified_access_service_types from service_role;
+revoke all on table public.verified_access_condominium_service_types from service_role;
+revoke all on table public.verified_access_policies from service_role;
+revoke all on table public.verified_access_requests from service_role;
+revoke all on table public.verified_access_service_request_details from service_role;
+revoke all on table public.verified_access_participant_slots from service_role;
+revoke all on table public.verified_access_identity_profiles from service_role;
+revoke all on table public.verified_access_participants from service_role;
+revoke all on table public.verified_access_eligibility_evaluations from service_role;
+revoke all on table public.verified_access_outbox_events from service_role;
+revoke all on table public.verified_access_audit_events from service_role;
+
 revoke execute on function public.verified_access_validate_service_request_details() from public, anon, authenticated;
 revoke execute on function public.verified_access_validate_slot_capacity() from public, anon, authenticated;
 revoke execute on function public.verified_access_prevent_outbox_business_mutation() from public, anon, authenticated;
