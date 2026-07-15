@@ -43,8 +43,22 @@ jobs:
       - name: Start Supabase local stack
         shell: bash
         run: |
-          set -o pipefail
+          set -euo pipefail
           : > /tmp/verified-access-supabase-start.log
+          : > /tmp/verified-access-supabase-start-sanitized.log
+          start_ok=0
+
+          sanitize_supabase_start_log() {
+            if [ ! -f /tmp/verified-access-supabase-start.log ]; then
+              return 0
+            fi
+
+            sed -E \
+              -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|S3 Access Key|S3 Secret Key|API URL|DB URL|GraphQL URL|Studio URL|Inbucket URL|JWT_SECRET|POSTGRES_PASSWORD|connection string)/Id' \
+              -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+              -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+              /tmp/verified-access-supabase-start.log > /tmp/verified-access-supabase-start-sanitized.log
+          }
 
           for attempt in 1 2 3; do
             echo "Supabase start attempt ${attempt}/3" | tee -a /tmp/verified-access-supabase-start.log
@@ -52,7 +66,8 @@ jobs:
 
             if npx supabase start >> /tmp/verified-access-supabase-start.log 2>&1; then
               npx supabase status >> /tmp/verified-access-supabase-start.log 2>&1 || true
-              exit 0
+              start_ok=1
+              break
             fi
 
             npx supabase status >> /tmp/verified-access-supabase-start.log 2>&1 || true
@@ -60,12 +75,19 @@ jobs:
             sleep $((attempt * 20))
           done
 
+          sanitize_supabase_start_log
+          rm -f /tmp/verified-access-supabase-start.log
+
+          if [ "$start_ok" -eq 1 ]; then
+            exit 0
+          fi
+
           {
-            echo '::group::Supabase start failure tail'
-            tail -120 /tmp/verified-access-supabase-start.log
+            echo '::group::Supabase start failure sanitized tail'
+            tail -120 /tmp/verified-access-supabase-start-sanitized.log
             echo '::endgroup::'
           }
-          message=$(tail -20 /tmp/verified-access-supabase-start.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+          message=$(tail -20 /tmp/verified-access-supabase-start-sanitized.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
           echo "::error file=.github/workflows/verified-access-phase-1a.yml::Supabase local stack failed after 3 attempts. ${message}"
           exit 1
 
@@ -306,7 +328,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: verified-access-phase-1a-database-diagnostics
-          path: /tmp/verified-access-*.log
+          path: |
+            /tmp/verified-access-integration.log
+            /tmp/verified-access-role-runtime.log
+            /tmp/verified-access-pgtap.log
+            /tmp/verified-access-reapply-pgtap.log
+            /tmp/verified-access-reapply-integration.log
+            /tmp/verified-access-supabase-start-sanitized.log
           if-no-files-found: ignore
 
   admin-web:
