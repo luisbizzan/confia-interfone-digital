@@ -76,13 +76,15 @@ insert into public.verified_access_requests (
 )
 values
   ('55555555-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'SERVICE_PROVIDER', now(), now() + interval '1 day', 'America/Sao_Paulo', 2, '44444444-aaaa-4000-8000-000000000001', 1),
-  ('55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '22222222-bbbb-4000-8000-000000000001', '33333333-bbbb-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-bbbb-4000-8000-000000000001', 1);
+  ('55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '22222222-bbbb-4000-8000-000000000001', '33333333-bbbb-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-bbbb-4000-8000-000000000001', 1),
+  ('55555555-bbbb-4000-8000-000000000002', '11111111-bbbb-4000-8000-000000000001', '22222222-bbbb-4000-8000-000000000001', '33333333-bbbb-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-bbbb-4000-8000-000000000001', 1);
 
 insert into public.verified_access_participant_slots (id, condominium_id, request_id, slot_number, status, claimed_at)
 values
   ('66666666-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 1, 'OPEN', null),
   ('66666666-aaaa-4000-8000-000000000002', '11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 2, 'RESERVED', now()),
-  ('66666666-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 1, 'OPEN', null);
+  ('66666666-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 1, 'OPEN', null),
+  ('66666666-bbbb-4000-8000-000000000002', '11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000002', 1, 'OPEN', null);
 
 insert into public.verified_access_identity_profiles (
   id,
@@ -232,7 +234,7 @@ select pg_temp.expect_error($$insert into public.verified_access_service_request
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'detail for visitor');
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'cross-tenant detail request');
 
-select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-bbbb-4000-8000-000000000001', '77777777-aaaa-4000-8000-000000000001')$$, '23503', 'participant slot from other tenant/request');
+select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-bbbb-4000-8000-000000000002', '77777777-aaaa-4000-8000-000000000001')$$, '23503', 'participant slot from other tenant/request');
 select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-aaaa-4000-8000-000000000002', '77777777-bbbb-4000-8000-000000000001')$$, '23503', 'participant profile from other tenant');
 
 select pg_temp.expect_error($$insert into public.verified_access_eligibility_evaluations (condominium_id, request_id, participant_id, policy_id, policy_version, input_identity_status, input_background_status, outcome, decision_source) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '88888888-bbbb-4000-8000-000000000001', '44444444-aaaa-4000-8000-000000000001', 1, 'SELF_DECLARED', 'NOT_REQUIRED', 'REVIEW_REQUIRED', 'SYSTEM_RULES')$$, '23503', 'evaluation participant from other request');
