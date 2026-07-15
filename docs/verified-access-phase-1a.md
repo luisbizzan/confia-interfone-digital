@@ -101,7 +101,7 @@ Todas as tabelas novas tem RLS habilitada. A Fase 1A usa postura default-deny:
 
 O rollback local esta em `supabase/rollback/20260714100000_verified_access_phase_1a_rollback.sql`.
 
-Ele remove somente objetos da Fase 1A, incluindo os indices auxiliares `ux_units_id_condominium_id` e `ux_user_profiles_id_condominium_id`, e preserva `persons` e `INTERCOM`.
+Ele remove somente objetos da Fase 1A, incluindo os indices auxiliares `ux_units_id_condominium_id` e `ux_user_profiles_id_condominium_id`, e preserva `persons`, `condominium_features`, `condominium_feature_enabled(uuid,text)` e a feature `INTERCOM`.
 
 ## Validacao
 
@@ -120,6 +120,18 @@ npx supabase db lint
 ```
 
 O workflow `.github/workflows/verified-access-phase-1a.yml` executa banco descartavel, rollback, reaplicacao e smoke test.
+
+Run verde de validacao da Fase 1A:
+
+- SHA: `4802dce9af17eb152f51724b34fdbf33a0142598`
+- Run: `29417139604`
+- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29417139604`
+- `database`: success
+- `admin-web`: success
+
+No job `database`, passaram migrations do zero, pgTAP com 233 testes, integracao SQL, runtime role checks, `supabase db lint`, rollback, verificacao de rollback, reaplicacao, pgTAP pos-reaplicacao e integracao pos-reaplicacao.
+
+O workflow publica apenas diagnostics sanitizados em falhas. O log bruto de `supabase start` nao e enviado como artifact.
 
 ## Fora desta fase
 

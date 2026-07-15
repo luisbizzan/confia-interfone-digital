@@ -1,20 +1,23 @@
-# Acesso Verificado - Validacao da Fase 1A-H
+# Acesso Verificado - Validacao da Fase 1A
 
 Data: 2026-07-15
 
 ## Estado Git
 
 - Base: `origin/main` em `8a4ff78`.
-- SHA inicial da sprint: `d8609ee7d50e7c431ff433afdd54bbe4d8c44ecf`.
-- SHA final de codigo/CI observado: `e5d7f3277cff15dc4dffac859c1839d388df9616`.
+- SHA inicial da Fase 1A: `d8609ee7d50e7c431ff433afdd54bbe4d8c44ecf`.
+- SHA inicial do Gate 1A-FINAL: `0f1dabf257ed006769e9a412e8a0bfbdff54d00f`.
+- SHA validado: `4802dce9af17eb152f51724b34fdbf33a0142598`.
 - Branch: `agent/verified-access-phase-1a-r`.
+- Draft PR: `https://github.com/luisbizzan/confia-interfone-digital/pull/2`.
 
 ## Migrations da Fase 1A
 
 - `supabase/migrations/20260714100000_verified_access_local_foundation.sql`
 - `supabase/migrations/20260714101000_verified_access_local_security.sql`
 
-As duas migrations aparecem como pendentes no historico remoto sanitizado. Por isso foram corrigidas diretamente nesta branch.
+As migrations aplicaram do zero no banco descartavel do GitHub Actions.
+Nenhuma migration remota foi executada.
 
 ## Gaps corrigidos
 
@@ -24,21 +27,17 @@ As duas migrations aparecem como pendentes no historico remoto sanitizado. Por i
 - Adicionada validacao de detalhe somente para `SERVICE_PROVIDER`.
 - Adicionada validacao de capacidade de slot por `participant_limit`.
 - Revisada semantica de `claimed_at`.
+- Corrigidas fixtures para que testes negativos violem uma invariante por vez.
+- Corrigido rollback para validar `INTERCOM` em `condominium_features`.
 - Corrigido rollback para remover indices auxiliares da Fase 1A.
 - Outbox tornou-se parcialmente imutavel.
 - Auditoria bloqueia update, delete e truncate.
-- Grants de `service_role` foram minimizados.
+- Grants de `service_role` foram revogados antes dos grants minimos.
 - JSON de audit/outbox/evaluation/policy limitado a objeto quando aplicavel.
 - Policy V2 reconciliada com campos separados para visitante e prestador.
 - Identity profile minimizado para HMAC local de CPF, documento e telefone.
 - Request/evaluation reconciliados com campos de expiracao, ator e snapshot sanitizado.
-- Campos livres receberam limites e comentarios de finalidade.
-
-## Gaps adiados
-
-- State machines completas, RPCs de policy, providers, convites, QR, credenciais e UI pertencem a fases posteriores.
-- Sanitizacao JSON por blacklist permanece defesa em profundidade, nao detector universal de PII.
-- Criptografia/HMAC reais permanecem fora do banco e serao implementados em camada aprovada posterior.
+- Diagnostics do workflow nao fazem upload do log bruto de `supabase start`.
 
 ## Migration drift
 
@@ -50,61 +49,76 @@ Quatro migrations antigas estao aplicadas no remoto e presentes como untracked n
 
 | Comando | Resultado | Evidencia |
 |---|---|---|
-| `npm ci` | Passou | Instalou 425 pacotes; `npm audit` reportou 6 vulnerabilidades existentes |
 | `npm run admin:lint` | Passou | ESLint sem erros |
 | `npm run admin:build` | Passou | Next build concluido |
-| `npx supabase db push --dry-run` na worktree | Bloqueado | Worktree isolada nao possui link Supabase local nao versionado |
-| `npx supabase start` | Bloqueado | Docker Desktop/daemon indisponivel na sessao Windows |
-| `npx supabase db reset` | Bloqueado | Docker indisponivel |
+| `npx supabase start` | Bloqueado localmente | Docker nao esta instalado/disponivel nesta sessao Windows |
+| `npx supabase db reset` | Bloqueado localmente | Docker indisponivel |
 | `npx supabase test db` | Bloqueado localmente | Postgres local `127.0.0.1:54322` indisponivel |
 | `npx supabase db lint` | Bloqueado localmente | Postgres local `127.0.0.1:54322` indisponivel |
 
-Na checkout original, somente leitura, `npx supabase db push --dry-run` passou e listou apenas as duas migrations da Fase 1A como pendentes. Nenhuma migration remota foi executada.
-
-## CI
+## CI verde
 
 - Workflow: `.github/workflows/verified-access-phase-1a.yml`.
-- Run 1: `29384878087`, falhou em `Run integration SQL scenarios`.
-- Run 2: `29385091735`, falhou em `Run integration SQL scenarios`.
-- Run 3: `29385340268`, falhou em `Run integration SQL scenarios`.
-- Run 4: `29385544909`, falhou em `Start Supabase local stack`.
+- Run PR verde: `29417139604`.
+- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29417139604`.
+- SHA: `4802dce9af17eb152f51724b34fdbf33a0142598`.
 
-Nos runs 1, 2 e 3:
+### Job `database`
 
-- `Start Supabase local stack`: passou;
-- `Apply migrations from scratch`: passou;
-- `Run pgTAP database tests`: passou;
-- `Run integration SQL scenarios`: falhou.
+| Step | Resultado |
+|---|---|
+| Start Supabase local stack | success |
+| Apply migrations from scratch | success |
+| Run pgTAP database tests | success, 233 testes |
+| Run integration SQL scenarios | success |
+| Run runtime role permission checks | success |
+| Run Supabase database lint | success |
+| Create rollback sentinel | success |
+| Roll back Phase 1A objects | success |
+| Verify rollback scope | success |
+| Reapply migrations | success |
+| Re-run pgTAP smoke tests after reapply | success |
+| Re-run integration smoke after reapply | success |
+| Stop Supabase local stack | success |
+| Upload diagnostics | skipped, pois o run verde nao falhou |
 
-Sem autenticacao para logs completos, a API publica retornou apenas annotations genericas de exit code. O workflow foi ajustado para tentar expor o tail do `psql`, mas o limite de tres ciclos de correcao de CI foi atingido antes de um run verde.
+### Job `admin-web`
 
-Conclusao: CI vermelho. A branch nao esta aprovada para merge.
+| Step | Resultado |
+|---|---|
+| Install dependencies | success |
+| Lint admin web | success |
+| Build admin web | success |
 
-## Rollback
+## Rollback e reaplicacao
 
-Rollback definido em `supabase/rollback/20260714100000_verified_access_phase_1a_rollback.sql`.
+O rollback foi executado no banco descartavel do GitHub Actions.
 
-Validacao real em banco descartavel foi iniciada no GitHub Actions. Migrations e pgTAP passaram nos runs 1, 2 e 3; o teste de integracao psql e o rollback/reaplicacao ainda nao passaram.
+O workflow verificou:
 
-O workflow verifica:
+- nenhum objeto `verified_access_%` permaneceu depois do rollback;
+- `public.persons` permaneceu;
+- `public.condominium_features` permaneceu;
+- `public.condominium_feature_enabled(uuid,text)` permaneceu;
+- sentinel `INTERCOM = true` permaneceu em `condominium_features`;
+- features `VERIFIED_ACCESS` e `VERIFIED_ACCESS_BACKGROUND_CHECK` do sentinel foram removidas;
+- indices auxiliares `ux_units_id_condominium_id` e `ux_user_profiles_id_condominium_id` foram removidos.
 
-- remocao dos objetos `verified_access_%`;
-- remocao de `ux_units_id_condominium_id`;
-- remocao de `ux_user_profiles_id_condominium_id`;
-- preservacao de `public.persons`;
-- preservacao do papel `INTERCOM`;
-- reaplicacao das migrations por `supabase db reset`;
-- smoke tests apos reaplicacao.
+A reaplicacao via `npx supabase db reset` passou. O pgTAP e a integracao SQL passaram novamente apos a reaplicacao.
+
+## Artifacts e diagnosticos
+
+- O workflow cria `/tmp/verified-access-supabase-start-sanitized.log`.
+- O log bruto `/tmp/verified-access-supabase-start.log` e removido antes de qualquer upload.
+- O upload lista paths explicitos e nao usa wildcard que capture o log bruto.
+- O artifact bruto anterior do run `29412883145` foi removido via API oficial.
+- No run verde `29417139604`, o step `Upload diagnostics` ficou `skipped` porque nao houve falha.
 
 ## Features
 
 `VERIFIED_ACCESS` e `VERIFIED_ACCESS_BACKGROUND_CHECK` permanecem desligadas por padrao.
 
-## Blockers de merge
+## Status
 
-- CI vermelho.
-- Teste de integracao psql ainda falha no GitHub Actions.
-- Rollback e reaplicacao nao foram executados ate o fim no CI porque os runs pararam antes desses steps.
-- Logs completos do GitHub Actions exigem autenticacao indisponivel nesta execucao; API publica retornou apenas annotations genericas.
-
-A branch nao deve ser considerada aprovada para merge enquanto o GitHub Actions nao concluir verde em banco descartavel.
+Gate 1A-FINAL aprovado no CI em banco descartavel.
+Branch permanece em draft PR para revisao humana; nao houve merge.
