@@ -6,7 +6,7 @@ Data: 2026-07-15
 
 - Base: `origin/main` em `8a4ff78`.
 - SHA inicial da sprint: `d8609ee7d50e7c431ff433afdd54bbe4d8c44ecf`.
-- SHA final: pendente ate o commit final desta sprint.
+- SHA final de codigo/CI observado: `e5d7f3277cff15dc4dffac859c1839d388df9616`.
 - Branch: `agent/verified-access-phase-1a-r`.
 
 ## Migrations da Fase 1A
@@ -64,15 +64,27 @@ Na checkout original, somente leitura, `npx supabase db push --dry-run` passou e
 ## CI
 
 - Workflow: `.github/workflows/verified-access-phase-1a.yml`.
-- Run URL: pendente ate o push.
-- Run ID: pendente ate o push.
-- Conclusao: pendente.
+- Run 1: `29384878087`, falhou em `Run integration SQL scenarios`.
+- Run 2: `29385091735`, falhou em `Run integration SQL scenarios`.
+- Run 3: `29385340268`, falhou em `Run integration SQL scenarios`.
+- Run 4: `29385544909`, falhou em `Start Supabase local stack`.
+
+Nos runs 1, 2 e 3:
+
+- `Start Supabase local stack`: passou;
+- `Apply migrations from scratch`: passou;
+- `Run pgTAP database tests`: passou;
+- `Run integration SQL scenarios`: falhou.
+
+Sem autenticacao para logs completos, a API publica retornou apenas annotations genericas de exit code. O workflow foi ajustado para tentar expor o tail do `psql`, mas o limite de tres ciclos de correcao de CI foi atingido antes de um run verde.
+
+Conclusao: CI vermelho. A branch nao esta aprovada para merge.
 
 ## Rollback
 
 Rollback definido em `supabase/rollback/20260714100000_verified_access_phase_1a_rollback.sql`.
 
-Validacao real em banco descartavel depende do GitHub Actions porque Docker local esta indisponivel nesta sessao.
+Validacao real em banco descartavel foi iniciada no GitHub Actions. Migrations e pgTAP passaram nos runs 1, 2 e 3; o teste de integracao psql e o rollback/reaplicacao ainda nao passaram.
 
 O workflow verifica:
 
@@ -89,5 +101,10 @@ O workflow verifica:
 `VERIFIED_ACCESS` e `VERIFIED_ACCESS_BACKGROUND_CHECK` permanecem desligadas por padrao.
 
 ## Blockers de merge
+
+- CI vermelho.
+- Teste de integracao psql ainda falha no GitHub Actions.
+- Rollback e reaplicacao nao foram executados ate o fim no CI porque os runs pararam antes desses steps.
+- Logs completos do GitHub Actions exigem autenticacao indisponivel nesta execucao; API publica retornou apenas annotations genericas.
 
 A branch nao deve ser considerada aprovada para merge enquanto o GitHub Actions nao concluir verde em banco descartavel.
