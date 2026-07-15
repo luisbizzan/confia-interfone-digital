@@ -192,8 +192,41 @@ select pg_temp.expect_error($$insert into public.verified_access_requests (condo
 select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 3)$$, 'P0001', 'slot above capacity');
 select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 1)$$, '23505', 'duplicate slot');
 select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number) values ('11111111-aaaa-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 1)$$, 'P0001', 'cross-tenant slot request');
-select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number, status, claimed_at) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', 2, 'OPEN', now())$$, '23514', 'open slot cannot have claimed_at');
-select pg_temp.expect_error($$insert into public.verified_access_participant_slots (condominium_id, request_id, slot_number, status) values ('11111111-bbbb-4000-8000-000000000001', '55555555-bbbb-4000-8000-000000000001', 2, 'RESERVED')$$, '23514', 'reserved slot requires claimed_at');
+select pg_temp.expect_error($$update public.verified_access_participant_slots set claimed_at = now() where id = '66666666-aaaa-4000-8000-000000000001'$$, '23514', 'open slot cannot have claimed_at');
+select pg_temp.expect_error($$update public.verified_access_participant_slots set status = 'RESERVED', claimed_at = null where id = '66666666-bbbb-4000-8000-000000000001'$$, '23514', 'reserved slot requires claimed_at');
+
+do $$
+begin
+  if not exists (
+    select 1
+    from public.verified_access_participant_slots
+    where id = '66666666-aaaa-4000-8000-000000000001'
+      and status = 'OPEN'
+      and claimed_at is null
+  ) then
+    raise exception 'Expected OPEN slot with claimed_at NULL fixture';
+  end if;
+
+  if not exists (
+    select 1
+    from public.verified_access_participant_slots
+    where id = '66666666-aaaa-4000-8000-000000000002'
+      and status = 'RESERVED'
+      and claimed_at is not null
+  ) then
+    raise exception 'Expected RESERVED slot with claimed_at fixture';
+  end if;
+
+  update public.verified_access_participant_slots
+  set status = 'CANCELLED',
+      claimed_at = now()
+  where id = '66666666-bbbb-4000-8000-000000000001';
+
+  update public.verified_access_participant_slots
+  set status = 'EXPIRED',
+      claimed_at = now()
+  where id = '66666666-bbbb-4000-8000-000000000001';
+end $$;
 
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'OTHER'$$, 'P0001', 'OTHER without description');
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'detail for visitor');
