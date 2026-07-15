@@ -96,8 +96,7 @@ from (
   from (
     values
       ('anon'),
-      ('authenticated'),
-      ('PUBLIC')
+      ('authenticated')
   ) as roles(role_name)
   cross join (
     values

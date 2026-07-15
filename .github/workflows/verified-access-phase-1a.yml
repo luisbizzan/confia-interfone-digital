@@ -73,7 +73,22 @@ jobs:
         run: npx supabase db reset
 
       - name: Run pgTAP database tests
-        run: npx supabase test db
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          npx supabase test db 2>&1 | tee /tmp/verified-access-pgtap.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '::group::pgTAP failure tail'
+              tail -80 /tmp/verified-access-pgtap.log
+              echo '::endgroup::'
+            }
+            message=$(tail -20 /tmp/verified-access-pgtap.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1a.sql::${message}"
+            exit "$status"
+          fi
 
       - name: Run integration SQL scenarios
         env:
@@ -245,7 +260,22 @@ jobs:
         run: npx supabase db reset
 
       - name: Re-run pgTAP smoke tests after reapply
-        run: npx supabase test db
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          npx supabase test db 2>&1 | tee /tmp/verified-access-reapply-pgtap.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '::group::Reapply pgTAP failure tail'
+              tail -80 /tmp/verified-access-reapply-pgtap.log
+              echo '::endgroup::'
+            }
+            message=$(tail -20 /tmp/verified-access-reapply-pgtap.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1a.sql::${message}"
+            exit "$status"
+          fi
 
       - name: Re-run integration smoke after reapply
         env:
