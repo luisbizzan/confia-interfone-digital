@@ -36,11 +36,15 @@ A policy local guarda configuracoes separadas para visitante e prestador:
 - retencao e ajustes adicionais em JSON objeto;
 - campos de rede inertes.
 
+Identidade de visitante ou prestador em `OPTIONAL` ou `REQUIRED` exige referencia formal de aprovacao de privacidade. Quando ambas as identidades permanecem `DISABLED`, a referencia de privacidade nao e exigida.
+
 Os campos de rede existem para compatibilidade futura, mas nao criam tabelas de rede, nao ativam efeito operacional e rejeitam `AUTO_DENY_NETWORK`, `GLOBAL_DENIED` e `PERMANENT_BLACKLIST`.
 
 ## Seguranca e privacidade
 
 Dados pessoais sensiveis ficam somente em colunas `bytea` de ciphertext e HMACs locais separados para identificadores com finalidade concreta: CPF, documento e telefone. Nome, filiacao e nascimento nao possuem HMAC por minimizacao. Todas as colunas criptografadas/HMAC exigem versao de chave quando preenchidas.
+
+CPF e documento sao identificadores civis fortes e mantem unicidade local por condominio e versao de chave. Telefone pode ser compartilhado por familiares, responsaveis, menores ou equipes de prestadores; por isso nao e chave unica de identidade e possui apenas indice nao unico para lookup operacional.
 
 A Fase 1A nao inclui descriptografia SQL, secrets, biometria, selfies, certidoes, payloads policiais, HMAC de rede ou providers reais.
 
@@ -58,6 +62,7 @@ Foram escolhidas FKs compostas quando a invariante pode ser declarativa:
 Triggers `security invoker` com `search_path` fixo cobrem invariantes cross-row:
 
 - validar `SERVICE_PROVIDER` e `OTHER` em detalhes de servico;
+- impedir que um tipo de servico passe a exigir descricao quando ja existem detalhes desse tipo sem `other_description`;
 - limitar `slot_number` ao `participant_limit`;
 - impedir alteracao de payload de negocio na outbox;
 - impedir update, delete e truncate na auditoria.
