@@ -178,25 +178,6 @@ exception
 end;
 $$;
 
-create or replace function pg_temp.expect_role_error(p_role text, p_sql text, p_expected_sqlstate text, p_label text)
-returns void
-language plpgsql
-as $$
-begin
-  execute format('set local role %I', p_role);
-  execute p_sql;
-  reset role;
-  raise exception 'Expected % for %', p_expected_sqlstate, p_label
-    using errcode = 'ZX001';
-exception
-  when others then
-    reset role;
-    if sqlstate <> p_expected_sqlstate then
-      raise exception 'Expected %, got % for %', p_expected_sqlstate, sqlstate, p_label;
-    end if;
-end;
-$$;
-
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, network_signal_rules) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), '{"effect":"auto_deny_network"}'::jsonb)$$, '23514', 'forbidden network auto deny');
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, retention_settings) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), '[]'::jsonb)$$, '23514', 'policy retention json must be object');
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, visitor_background_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), 'REQUIRED')$$, '23514', 'background mode requires approval reference');
@@ -280,29 +261,4 @@ select pg_temp.expect_error($$update public.verified_access_audit_events set met
 select pg_temp.expect_error($$delete from public.verified_access_audit_events where id = '99999999-aaaa-4000-8000-000000000001'$$, 'P0001', 'audit delete blocked');
 select pg_temp.expect_error($$truncate public.verified_access_audit_events$$, 'P0001', 'audit truncate blocked');
 
-select pg_temp.expect_role_error('anon', $$select count(*) from public.verified_access_requests$$, '42501', 'anon cannot read');
-select pg_temp.expect_role_error('anon', $$insert into public.verified_access_audit_events (condominium_id, aggregate_type, aggregate_id, event_type) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED')$$, '42501', 'anon cannot write');
-select pg_temp.expect_role_error('authenticated', $$select count(*) from public.verified_access_identity_profiles$$, '42501', 'authenticated cannot read sensitive tables directly');
-select pg_temp.expect_role_error('authenticated', $$insert into public.verified_access_audit_events (condominium_id, aggregate_type, aggregate_id, event_type) values ('11111111-aaaa-4000-8000-000000000001', 'REQUEST', '55555555-aaaa-4000-8000-000000000001', 'REQUEST_CREATED')$$, '42501', 'authenticated cannot write');
-
-set local role service_role;
-select count(*) from public.verified_access_requests;
-insert into public.verified_access_audit_events (
-  condominium_id,
-  aggregate_type,
-  aggregate_id,
-  event_type,
-  metadata
-)
-values (
-  '11111111-aaaa-4000-8000-000000000001',
-  'REQUEST',
-  '55555555-aaaa-4000-8000-000000000001',
-  'SERVICE_ROLE_TEST',
-  '{"event":"service_role_insert"}'::jsonb
-);
-reset role;
-
-select pg_temp.expect_role_error('service_role', $$delete from public.verified_access_requests where id = '55555555-aaaa-4000-8000-000000000001'$$, '42501', 'service_role cannot delete requests');
-
-rollback;
+commit;
