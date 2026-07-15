@@ -46,7 +46,21 @@ jobs:
       - name: Run integration SQL scenarios
         env:
           PGPASSWORD: postgres
-        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1a_integration.psql
+        shell: bash
+        run: |
+          set -o pipefail
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1a_integration.psql 2>&1 | tee /tmp/verified-access-integration.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '::group::Integration failure tail'
+              tail -40 /tmp/verified-access-integration.log
+              echo '::endgroup::'
+            }
+            message=$(tail -12 /tmp/verified-access-integration.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1a_integration.psql::${message}"
+            exit "$status"
+          fi
 
       - name: Run Supabase database lint
         run: npx supabase db lint
