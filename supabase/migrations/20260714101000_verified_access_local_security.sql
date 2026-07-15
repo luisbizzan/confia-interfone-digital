@@ -22,46 +22,28 @@ revoke all on table public.verified_access_eligibility_evaluations from public, 
 revoke all on table public.verified_access_outbox_events from public, anon, authenticated;
 revoke all on table public.verified_access_audit_events from public, anon, authenticated;
 
-revoke execute on function public.verified_access_service_type_requires_description(uuid) from public, anon, authenticated;
-grant execute on function public.verified_access_service_type_requires_description(uuid) to service_role;
+revoke execute on function public.verified_access_validate_service_request_details() from public, anon, authenticated;
+revoke execute on function public.verified_access_validate_slot_capacity() from public, anon, authenticated;
+revoke execute on function public.verified_access_prevent_outbox_business_mutation() from public, anon, authenticated;
+revoke execute on function public.verified_access_prevent_audit_mutation() from public, anon, authenticated;
 
-grant select, insert, update, delete on table public.verified_access_service_types to service_role;
-grant select, insert, update, delete on table public.verified_access_condominium_service_types to service_role;
-grant select, insert, update, delete on table public.verified_access_policies to service_role;
-grant select, insert, update, delete on table public.verified_access_requests to service_role;
-grant select, insert, update, delete on table public.verified_access_service_request_details to service_role;
-grant select, insert, update, delete on table public.verified_access_participant_slots to service_role;
-grant select, insert, update, delete on table public.verified_access_identity_profiles to service_role;
-grant select, insert, update, delete on table public.verified_access_participants to service_role;
-grant select, insert, update, delete on table public.verified_access_eligibility_evaluations to service_role;
-grant select, insert, update, delete on table public.verified_access_outbox_events to service_role;
+grant select, insert, update on table public.verified_access_service_types to service_role;
+grant select, insert, update on table public.verified_access_condominium_service_types to service_role;
+grant select, insert, update on table public.verified_access_policies to service_role;
+grant select, insert, update on table public.verified_access_requests to service_role;
+grant select, insert, update on table public.verified_access_service_request_details to service_role;
+grant select, insert, update on table public.verified_access_participant_slots to service_role;
+grant select, insert, update on table public.verified_access_identity_profiles to service_role;
+grant select, insert, update on table public.verified_access_participants to service_role;
+grant select, insert on table public.verified_access_eligibility_evaluations to service_role;
+grant select, insert, update on table public.verified_access_outbox_events to service_role;
 grant select, insert on table public.verified_access_audit_events to service_role;
 
-create or replace function public.verified_access_prevent_audit_mutation()
-returns trigger
-language plpgsql
-security definer
-set search_path = public
-as $$
-begin
-  raise exception 'verified_access_audit_events is append-only';
-end;
-$$;
-
-drop trigger if exists verified_access_audit_events_prevent_update on public.verified_access_audit_events;
-create trigger verified_access_audit_events_prevent_update
-before update on public.verified_access_audit_events
-for each row
-execute function public.verified_access_prevent_audit_mutation();
-
-drop trigger if exists verified_access_audit_events_prevent_delete on public.verified_access_audit_events;
-create trigger verified_access_audit_events_prevent_delete
-before delete on public.verified_access_audit_events
-for each row
-execute function public.verified_access_prevent_audit_mutation();
-
-revoke execute on function public.verified_access_prevent_audit_mutation() from public, anon, authenticated;
-grant execute on function public.verified_access_prevent_audit_mutation() to service_role;
-
+comment on function public.verified_access_validate_service_request_details() is
+  'Valida tipo SERVICE_PROVIDER e descricao obrigatoria para catalogos que exigem descricao. Security invoker; sem grant publico.';
+comment on function public.verified_access_validate_slot_capacity() is
+  'Impede slot_number acima do participant_limit da solicitacao. Security invoker; sem grant publico.';
+comment on function public.verified_access_prevent_outbox_business_mutation() is
+  'Impede alteracao de payload de negocio da outbox apos insert, permitindo apenas campos operacionais.';
 comment on function public.verified_access_prevent_audit_mutation() is
-  'Impede update/delete na auditoria do Acesso Verificado. Append-only na Fase 1A.';
+  'Impede update, delete e truncate na auditoria do Acesso Verificado. Append-only na Fase 1A.';
