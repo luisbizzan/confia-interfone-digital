@@ -35,6 +35,7 @@ revoke all on table public.verified_access_outbox_events from service_role;
 revoke all on table public.verified_access_audit_events from service_role;
 
 revoke execute on function public.verified_access_validate_service_request_details() from public, anon, authenticated;
+revoke execute on function public.verified_access_validate_service_type_requirement_change() from public, anon, authenticated;
 revoke execute on function public.verified_access_validate_slot_capacity() from public, anon, authenticated;
 revoke execute on function public.verified_access_prevent_outbox_business_mutation() from public, anon, authenticated;
 revoke execute on function public.verified_access_prevent_audit_mutation() from public, anon, authenticated;
@@ -53,6 +54,8 @@ grant select, insert on table public.verified_access_audit_events to service_rol
 
 comment on function public.verified_access_validate_service_request_details() is
   'Valida tipo SERVICE_PROVIDER e descricao obrigatoria para catalogos que exigem descricao. Security invoker; sem grant publico.';
+comment on function public.verified_access_validate_service_type_requirement_change() is
+  'Impede tornar descricao obrigatoria quando existem detalhes desse tipo sem descricao. Security invoker; sem grant publico.';
 comment on function public.verified_access_validate_slot_capacity() is
   'Impede slot_number acima do participant_limit da solicitacao. Security invoker; sem grant publico.';
 comment on function public.verified_access_prevent_outbox_business_mutation() is

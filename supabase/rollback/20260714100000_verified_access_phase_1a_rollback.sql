@@ -4,10 +4,12 @@ drop trigger if exists verified_access_audit_events_prevent_update on public.ver
 drop trigger if exists verified_access_outbox_prevent_business_update on public.verified_access_outbox_events;
 drop trigger if exists verified_access_slots_validate_capacity on public.verified_access_participant_slots;
 drop trigger if exists verified_access_service_details_validate on public.verified_access_service_request_details;
+drop trigger if exists verified_access_service_types_validate_requirement_change on public.verified_access_service_types;
 
 drop function if exists public.verified_access_prevent_audit_mutation();
 drop function if exists public.verified_access_prevent_outbox_business_mutation();
 drop function if exists public.verified_access_validate_slot_capacity();
+drop function if exists public.verified_access_validate_service_type_requirement_change();
 drop function if exists public.verified_access_validate_service_request_details();
 
 drop table if exists public.verified_access_audit_events;

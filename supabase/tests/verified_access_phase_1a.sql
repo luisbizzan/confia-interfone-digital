@@ -162,20 +162,47 @@ select is_empty(
 select ok(to_regprocedure('public.verified_access_service_type_requires_description(uuid)') is null, 'cross-table CHECK helper was removed');
 
 select ok(to_regprocedure('public.verified_access_validate_service_request_details()') is not null, 'service details trigger function exists');
+select ok(to_regprocedure('public.verified_access_validate_service_type_requirement_change()') is not null, 'service type requirement change trigger function exists');
 select ok(to_regprocedure('public.verified_access_validate_slot_capacity()') is not null, 'slot capacity trigger function exists');
 select ok(to_regprocedure('public.verified_access_prevent_outbox_business_mutation()') is not null, 'outbox immutability trigger function exists');
 select ok(to_regprocedure('public.verified_access_prevent_audit_mutation()') is not null, 'audit append-only trigger function exists');
+
+select ok(
+  exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'verified_access_service_types'
+      and t.tgname = 'verified_access_service_types_validate_requirement_change'
+      and not t.tgisinternal
+  ),
+  'service type requirement change trigger exists'
+);
 
 select ok(to_regclass('public.ux_verified_access_policies_id_condominium_version') is not null, 'policy id/tenant/version unique index exists');
 select ok(to_regclass('public.ux_verified_access_slots_id_request_condominium') is not null, 'slot id/request/tenant unique index exists');
 select ok(to_regclass('public.ux_verified_access_participants_id_request_condominium') is not null, 'participant id/request/tenant unique index exists');
 select ok(to_regclass('public.ux_units_id_condominium_id') is not null, 'unit tenant helper index exists');
 select ok(to_regclass('public.ux_user_profiles_id_condominium_id') is not null, 'user profile tenant helper index exists');
+select ok(to_regclass('public.ux_verified_access_identity_profiles_phone_tenant_hmac') is null, 'old unique phone hmac index does not exist');
+select ok(to_regclass('public.idx_verified_access_identity_profiles_phone_tenant_hmac') is not null, 'non-unique phone hmac lookup index exists');
+select is(
+  (
+    select i.indisunique
+    from pg_index i
+    where i.indexrelid = 'public.idx_verified_access_identity_profiles_phone_tenant_hmac'::regclass
+  ),
+  false,
+  'phone hmac lookup index is not unique'
+);
 
 select ok(exists (select 1 from pg_constraint where conname = 'verified_access_requests_policy_version_fk'), 'request policy version composite FK exists');
 select ok(exists (select 1 from pg_constraint where conname = 'verified_access_participants_slot_request_tenant_fk'), 'participant slot/request composite FK exists');
 select ok(exists (select 1 from pg_constraint where conname = 'verified_access_evaluations_participant_request_tenant_fk'), 'evaluation participant/request composite FK exists');
 select ok(exists (select 1 from pg_constraint where conname = 'verified_access_evaluations_policy_version_fk'), 'evaluation policy version composite FK exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_policies_privacy_approval_check'), 'privacy approval check exists');
 
 select isnt_empty(
   $$select 1

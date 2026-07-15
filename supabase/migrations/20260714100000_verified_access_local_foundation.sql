@@ -155,6 +155,11 @@ create table if not exists public.verified_access_policies (
       (visitor_background_mode = 'DISABLED' and service_background_mode = 'DISABLED')
       or nullif(trim(coalesce(background_approval_reference, '')), '') is not null
     ),
+  constraint verified_access_policies_privacy_approval_check
+    check (
+      (visitor_identity_mode = 'DISABLED' and service_identity_mode = 'DISABLED')
+      or nullif(trim(coalesce(privacy_approval_reference, '')), '') is not null
+    ),
   constraint verified_access_policies_network_approval_check
     check (
       (
@@ -456,7 +461,7 @@ create unique index if not exists ux_verified_access_identity_profiles_document_
 on public.verified_access_identity_profiles(condominium_id, document_type, document_number_tenant_hmac, hmac_key_version)
 where document_number_tenant_hmac is not null;
 
-create unique index if not exists ux_verified_access_identity_profiles_phone_tenant_hmac
+create index if not exists idx_verified_access_identity_profiles_phone_tenant_hmac
 on public.verified_access_identity_profiles(condominium_id, phone_tenant_hmac, hmac_key_version)
 where phone_tenant_hmac is not null;
 
@@ -735,6 +740,33 @@ create trigger verified_access_service_details_validate
 before insert or update on public.verified_access_service_request_details
 for each row
 execute function public.verified_access_validate_service_request_details();
+
+create or replace function public.verified_access_validate_service_type_requirement_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public, pg_temp
+as $$
+begin
+  if old.requires_description = false and new.requires_description = true then
+    if exists (
+      select 1
+      from public.verified_access_service_request_details vasrd
+      where vasrd.service_type_id = new.id
+        and nullif(trim(coalesce(vasrd.other_description, '')), '') is null
+    ) then
+      raise exception 'cannot require service description while existing details are missing other_description';
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+create trigger verified_access_service_types_validate_requirement_change
+before update of requires_description on public.verified_access_service_types
+for each row
+execute function public.verified_access_validate_service_type_requirement_change();
 
 create or replace function public.verified_access_validate_slot_capacity()
 returns trigger

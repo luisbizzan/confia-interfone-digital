@@ -182,8 +182,91 @@ $$;
 
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, network_signal_rules) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), '{"effect":"auto_deny_network"}'::jsonb)$$, '23514', 'forbidden network auto deny');
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, retention_settings) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), '[]'::jsonb)$$, '23514', 'policy retention json must be object');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, visitor_identity_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('i', 64), 'OPTIONAL')$$, '23514', 'visitor optional identity requires privacy approval');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, visitor_identity_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('j', 64), 'REQUIRED')$$, '23514', 'visitor required identity requires privacy approval');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, service_identity_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('k', 64), 'OPTIONAL')$$, '23514', 'service optional identity requires privacy approval');
+select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, service_identity_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('l', 64), 'REQUIRED')$$, '23514', 'service required identity requires privacy approval');
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, visitor_background_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), 'REQUIRED')$$, '23514', 'background mode requires approval reference');
 select pg_temp.expect_error($$insert into public.verified_access_policies (condominium_id, version, content_checksum, network_identity_mode) values ('11111111-aaaa-4000-8000-000000000001', 2, repeat('x', 64), 'EVALUATE_ONLY')$$, '23514', 'network mode requires approval reference');
+
+insert into public.verified_access_policies (
+  id,
+  condominium_id,
+  version,
+  content_checksum
+)
+values (
+  '44444444-aaaa-4000-8000-000000000002',
+  '11111111-aaaa-4000-8000-000000000001',
+  2,
+  repeat('2', 64)
+);
+
+insert into public.verified_access_policies (
+  id,
+  condominium_id,
+  version,
+  visitor_identity_mode,
+  privacy_approval_reference,
+  content_checksum
+)
+values (
+  '44444444-aaaa-4000-8000-000000000003',
+  '11111111-aaaa-4000-8000-000000000001',
+  3,
+  'REQUIRED',
+  'privacy-visitor-required',
+  repeat('3', 64)
+);
+
+insert into public.verified_access_policies (
+  id,
+  condominium_id,
+  version,
+  service_identity_mode,
+  privacy_approval_reference,
+  content_checksum
+)
+values (
+  '44444444-aaaa-4000-8000-000000000004',
+  '11111111-aaaa-4000-8000-000000000001',
+  4,
+  'REQUIRED',
+  'privacy-service-required',
+  repeat('4', 64)
+);
+
+insert into public.verified_access_identity_profiles (
+  id,
+  condominium_id,
+  cpf_ciphertext,
+  cpf_tenant_hmac,
+  document_type,
+  document_number_ciphertext,
+  document_number_tenant_hmac,
+  phone_ciphertext,
+  phone_tenant_hmac,
+  full_name_ciphertext,
+  encryption_key_version,
+  hmac_key_version
+)
+values (
+  '77777777-aaaa-4000-8000-000000000002',
+  '11111111-aaaa-4000-8000-000000000001',
+  '\x11'::bytea,
+  repeat('p', 32),
+  'CPF',
+  '\x12'::bytea,
+  repeat('q', 32),
+  '\x13'::bytea,
+  repeat('e', 32),
+  '\x14'::bytea,
+  1,
+  1
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_identity_profiles (id, condominium_id, cpf_ciphertext, cpf_tenant_hmac, document_type, document_number_ciphertext, document_number_tenant_hmac, full_name_ciphertext, encryption_key_version, hmac_key_version) values ('77777777-aaaa-4000-8000-000000000003', '11111111-aaaa-4000-8000-000000000001', '\x21'::bytea, repeat('a', 32), 'CPF', '\x22'::bytea, repeat('r', 32), '\x24'::bytea, 1, 1)$$, '23505', 'duplicate cpf hmac remains unique');
+select pg_temp.expect_error($$insert into public.verified_access_identity_profiles (id, condominium_id, cpf_ciphertext, cpf_tenant_hmac, document_type, document_number_ciphertext, document_number_tenant_hmac, full_name_ciphertext, encryption_key_version, hmac_key_version) values ('77777777-aaaa-4000-8000-000000000004', '11111111-aaaa-4000-8000-000000000001', '\x31'::bytea, repeat('s', 32), 'CPF', '\x32'::bytea, repeat('c', 32), '\x34'::bytea, 1, 1)$$, '23505', 'duplicate document hmac remains unique');
 
 select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-bbbb-4000-8000-000000000001', '33333333-aaaa-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-aaaa-4000-8000-000000000001', 1)$$, '23503', 'cross-tenant request unit');
 select pg_temp.expect_error($$insert into public.verified_access_requests (condominium_id, unit_id, requested_by_user_id, request_type, starts_at, ends_at, timezone, participant_limit, policy_id, policy_version) values ('11111111-aaaa-4000-8000-000000000001', '22222222-aaaa-4000-8000-000000000001', '33333333-bbbb-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-aaaa-4000-8000-000000000001', 1)$$, '23503', 'cross-tenant request requester');
@@ -233,6 +316,55 @@ end $$;
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-aaaa-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'OTHER'$$, 'P0001', 'OTHER without description');
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-bbbb-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'detail for visitor');
 select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-bbbb-4000-8000-000000000001', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'cross-tenant detail request');
+
+update public.verified_access_service_request_details
+set service_type_id = (
+      select id
+      from public.verified_access_service_types
+      where code = 'CONSTRUCTION'
+    ),
+    other_description = null
+where request_id = '55555555-aaaa-4000-8000-000000000001';
+
+select pg_temp.expect_error($$update public.verified_access_service_types set requires_description = true where code = 'CONSTRUCTION'$$, 'P0001', 'cannot require description while existing details are blank');
+
+update public.verified_access_service_request_details
+set other_description = 'Fixture construction detail'
+where request_id = '55555555-aaaa-4000-8000-000000000001';
+
+update public.verified_access_service_types
+set requires_description = true
+where code = 'CONSTRUCTION';
+
+insert into public.verified_access_requests (
+  id,
+  condominium_id,
+  unit_id,
+  requested_by_user_id,
+  request_type,
+  starts_at,
+  ends_at,
+  timezone,
+  participant_limit,
+  policy_id,
+  policy_version
+)
+values (
+  '55555555-aaaa-4000-8000-000000000002',
+  '11111111-aaaa-4000-8000-000000000001',
+  '22222222-aaaa-4000-8000-000000000001',
+  '33333333-aaaa-4000-8000-000000000001',
+  'SERVICE_PROVIDER',
+  now(),
+  now() + interval '1 day',
+  'America/Sao_Paulo',
+  1,
+  '44444444-aaaa-4000-8000-000000000001',
+  1
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_service_request_details (request_id, condominium_id, service_type_id) select '55555555-aaaa-4000-8000-000000000002', '11111111-aaaa-4000-8000-000000000001', id from public.verified_access_service_types where code = 'CONSTRUCTION'$$, 'P0001', 'new construction detail requires description');
+select pg_temp.expect_error($$update public.verified_access_service_types set requires_description = false where code = 'OTHER'$$, '23514', 'OTHER cannot stop requiring description');
 
 select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-bbbb-4000-8000-000000000002', '77777777-aaaa-4000-8000-000000000001')$$, '23503', 'participant slot from other tenant/request');
 select pg_temp.expect_error($$insert into public.verified_access_participants (condominium_id, request_id, slot_id, identity_profile_id) values ('11111111-aaaa-4000-8000-000000000001', '55555555-aaaa-4000-8000-000000000001', '66666666-aaaa-4000-8000-000000000002', '77777777-bbbb-4000-8000-000000000001')$$, '23503', 'participant profile from other tenant');
