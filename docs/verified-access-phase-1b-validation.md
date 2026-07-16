@@ -5,36 +5,38 @@ Data: 2026-07-16
 ## Estado Git
 
 - Branch: `agent/verified-access-phase-1b`.
-- Base esperada: `origin/main` em `84077aa18731f83d6e8cfa505b7d10dec2b89026`.
-- Commit documental inicial: `0eba533d8e41007ca0e6f300edc316248d0c1c95`.
+- Base: `origin/main` em `84077aa18731f83d6e8cfa505b7d10dec2b89026`.
 - Draft PR: `https://github.com/luisbizzan/confia-interfone-digital/pull/3`.
-- SHA final validado antes do Gate 1B-REVIEW: `2c5e418d8b9daa0e1d99ce3573c3a6f743e11ff6`.
-- SHA final do Gate 1B-REVIEW: pendente de CI.
+- SHA validado no Gate 1B-FINAL REVIEW antes desta atualizacao documental:
+  `71d9929e46e12c95e328f2273a32259ed1ccb26b`.
 
 ## Escopo Implementado
 
-- ADR da fundacao de rede.
-- Migrations locais da Fase 1B.
+- Tres feature flags de rede criadas desligadas.
 - Sete tabelas centrais de rede.
-- Feature flags de rede criadas sempre desligadas.
-- RLS default-deny nas tabelas centrais.
-- Revogacao explicita de privilegios de `PUBLIC`, `anon`, `authenticated` e `service_role`.
-- pgTAP da Fase 1B.
-- Integracao SQL da Fase 1B.
-- Rollback da Fase 1B.
-- Workflow GitHub Actions da Fase 1B.
-- Compatibilidade do pgTAP/workflow da Fase 1A para executar em branches que
-  tambem contenham a Fase 1B.
-- Gate 1B-REVIEW alinhando taxonomias, FK composta entre signal/case/subject e
-  trigger de validacao de case substanciado.
+- Taxonomias canonicas de subjects, identifiers, links, cases, signals,
+  reviews e appeals.
+- RLS default-deny, sem policies.
+- Revogacao explicita de privilegios de `PUBLIC`, `anon`, `authenticated` e
+  `service_role`.
+- Nenhuma view, RPC, API, provider, HMAC SQL real ou operacao de rede.
+- Rollback dedicado e reaplicacao em banco descartavel.
+
+## Findings Gate 1B-FINAL REVIEW
+
+| Finding | Status | Evidencia |
+|---|---|---|
+| 1B-FINAL-01 links | Corrigido e validado | `link_status` aceita somente `ACTIVE`, `DISPUTED`, `UNLINKED`; `link_reason` aceita somente `IDENTITY_VERIFIED`, `MANUAL_VERIFIED`, `IDENTIFIER_ROTATION`, `SUBJECT_MERGE`, `CORRECTION`; regras de `unlinked_at` cobertas |
+| 1B-FINAL-02 appeals | Corrigido e validado | FK composta `(signal_id, network_subject_id)` para signals; appeal sem signal permitido |
+| 1B-FINAL-03 condominium report | Corrigido e validado | trigger `verified_access_network_cases_validate_source_subject` valida participant, identity profile e link `ACTIVE`/`DISPUTED` do mesmo subject |
+| 1B-FINAL-04 docs/PR | Parcial | README, ROADMAP e CURRENT_TASK atualizados; PR body bloqueado por permissao da GitHub App, fallback manual requerido |
 
 ## Migrations da Fase 1B
 
 - `supabase/migrations/20260716100000_verified_access_network_foundation.sql`
 - `supabase/migrations/20260716101000_verified_access_network_security.sql`
 
-As migrations sao para banco local/descartavel. Nenhuma migration Supabase
-remota deve ser executada nesta fase.
+Nenhuma migration do Acesso Verificado foi aplicada remotamente.
 
 ## Tabelas Centrais
 
@@ -46,108 +48,62 @@ remota deve ser executada nesta fase.
 - `verified_access_network_signal_reviews`
 - `verified_access_network_appeals`
 
-## Garantias de Seguranca
+## Invariantes Estruturais
 
-- Nenhuma coluna central de CPF, telefone, e-mail, nome, face, biometria,
-  plaintext ou ciphertext foi criada.
-- Telefone nao e identificador de rede.
-- Sinais nao permitem `AUTO_DENY_NETWORK`, `GLOBAL_DENIED` ou
-  `PERMANENT_BLACKLIST`.
-- Nenhuma funcao SQL HMAC foi criada.
-- Nenhum trigger operacional de propagacao, view, RPC ou policy RLS foi criado.
-- O unico trigger da Fase 1B valida que `network_signals.source_case_id`
-  pertence ao mesmo subject e esta `SUBSTANTIATED`.
-- `service_role` nao recebeu privilegio direto nas tabelas centrais.
-
-## Gate 1B-REVIEW
-
-| Finding | Status local | Evidencia |
-|---|---|---|
-| 1B-PM-01 identifiers | Corrigido | `CPF`, `RNM`, `PASSPORT_WITH_ISSUER` somente |
-| 1B-PM-02 subject status | Corrigido | `ACTIVE`, `UNDER_REVIEW`, `DISPUTED`, `MERGED`, `RETIRED` |
-| 1B-PM-03 case source types | Corrigido | lista canonica e regra local/nula por source |
-| 1B-PM-04 case status | Corrigido | `REPORTED`, `TRIAGE`, `UNDER_REVIEW`, `SUBSTANTIATED`, `DISMISSED`, `CLOSED`, `EXPIRED` |
-| 1B-PM-05 opening categories | Corrigido | categorias suspeitas canonicas somente |
-| 1B-PM-06 signal/source subject | Corrigido | FK composta `(source_case_id, network_subject_id)` |
-| 1B-PM-07 signal categories | Corrigido | categorias confirmadas canonicas somente |
-| 1B-PM-08 signal effects | Corrigido | efeitos canonicos somente |
-| 1B-PM-09 signal status | Corrigido | `DRAFT`, `UNDER_REVIEW`, `ACTIVE`, `SUSPENDED`, `REVOKED`, `EXPIRED`, `REJECTED` |
-| 1B-PM-10 substantiated case | Corrigido | trigger `verified_access_network_signals_validate_source_case` |
-| 1B-PM-11 PR body | Pendente | atualizar PR apos CI verde ou registrar bloqueio de permissao |
-
-## Validacoes
-
-Esta secao deve ser atualizada somente com resultados efetivamente executados.
-
-| Validacao | Resultado | Evidencia |
-|---|---|---|
-| Preflight Git | Passou | Branch limpa em `0eba533`; `origin/main` ancestral em `84077aa` |
-| Historico remoto Supabase | Passou | Phase 1A sem Remote em `npx supabase migration list` |
-| Migrations descartaveis | Passou no CI | `npx supabase db reset`, run `29510636615` |
-| pgTAP Phase 1A/1B | Passou no CI | `Run pgTAP database tests`, run `29510636615` |
-| Integracao Phase 1A/1B | Passou no CI | `Run integration SQL scenarios`, run `29510636615` |
-| Role checks | Passou no CI | `Run runtime role permission checks`, run `29510636615` |
-| DB lint | Passou no CI | `Run Supabase database lint`, run `29510636615` |
-| Rollback 1B | Passou no CI | `Roll back Phase 1B objects`, run `29510636615` |
-| Preservacao 1A apos rollback | Passou no CI | `Verify rollback scope`, run `29510636615` |
-| Reaplicacao | Passou no CI | `Reapply migrations`, run `29510636615` |
-| Smoke pos-reaplicacao | Passou no CI | pgTAP e integracao pos-reaplicacao, run `29510636615` |
-| `npm run admin:lint` | Passou | ESLint sem erros apos `npm ci` |
-| `npm run admin:build` | Passou | Next build concluido apos `npm ci` |
-| CI Phase 1B | Passou | `database = success`, `admin-web = success`, run `29510636615` |
-| CI Phase 1A legado | Passou | `database = success`, `admin-web = success`, run `29510636495` |
-| Vercel | Passou | Status GitHub `Vercel = success`, target `https://vercel.com/confia-interfone-s-projects/confia-interfone-digital-admin-web/3tsL7tszYrtg9NQT8EbRT81sKzkN` |
+- Signal referencia case do mesmo subject por FK composta.
+- Signal exige case `SUBSTANTIATED` por trigger `security invoker`.
+- Appeal com signal referencia signal do mesmo subject por FK composta.
+- `CONDOMINIUM_REPORT` exige participant local com identity profile e link
+  central `ACTIVE` ou `DISPUTED` para o mesmo subject.
+- Sources nao locais exigem condominium e participant nulos.
+- `LOCAL_DENIED` nao cria case nem signal.
+- Features de rede permanecem desligadas.
 
 ## CI Verde
 
-- Workflow principal: `Verified Access Phase 1B`.
-- Run: `29510636615`.
-- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29510636615`.
-- SHA: `257ec84b23b95a995aaffb335fedd85401599bab`.
+### Phase 1B
 
-### Job `database`
+- Run: `29531335271`.
+- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29531335271`.
+- SHA: `71d9929e46e12c95e328f2273a32259ed1ccb26b`.
+- `database`: success.
+- `admin-web`: success.
 
-| Step | Resultado |
-|---|---|
-| Start Supabase local stack | success |
-| Apply migrations from scratch | success |
-| Run pgTAP database tests | success |
-| Run integration SQL scenarios | success |
-| Run runtime role permission checks | success |
-| Run Supabase database lint | success |
-| Create rollback sentinel | success |
-| Roll back Phase 1B objects | success |
-| Verify rollback scope | success |
-| Reapply migrations | success |
-| Re-run pgTAP smoke tests after reapply | success |
-| Re-run integration smoke after reapply | success |
-| Stop Supabase local stack | success |
-| Upload diagnostics | skipped, pois o run verde nao falhou |
+Steps de banco validados:
 
-### Job `admin-web`
+- Start Supabase local stack: success.
+- Apply migrations from scratch: success.
+- Run pgTAP database tests: success.
+- Run integration SQL scenarios: success.
+- Run runtime role permission checks: success.
+- Run Supabase database lint: success.
+- Roll back Phase 1B objects: success.
+- Verify rollback scope: success.
+- Reapply migrations: success.
+- Re-run pgTAP smoke tests after reapply: success.
+- Re-run integration smoke after reapply: success.
 
-| Step | Resultado |
-|---|---|
-| Install dependencies | success |
-| Lint admin web | success |
-| Build admin web | success |
+### Phase 1A
 
-## Ciclos de CI
+- Run: `29531335267`.
+- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29531335267`.
+- SHA: `71d9929e46e12c95e328f2273a32259ed1ccb26b`.
+- `database`: success.
+- `admin-web`: success.
+- Rollback/reaplicacao/smokes da Fase 1A: success.
 
-- Ciclo 1: run `29509931404` falhou no pgTAP porque o teste 1A ainda exigia
-  ausencia das tabelas centrais depois da aplicacao da Fase 1B.
-- Ciclo 2: run `29510259086` da Fase 1B passou; o workflow legado 1A
-  `29510259602` falhou porque tentava rollback 1A antes de remover FKs da 1B.
-- Ciclo 3: runs `29510636615` e `29510636495` passaram.
+### Vercel
 
-## Vercel
+- Status GitHub: success.
+- Ambiente identificado pelo deployment/status: Preview.
 
-- Status GitHub: `success`.
-- Target: `https://vercel.com/confia-interfone-s-projects/confia-interfone-digital-admin-web/3tsL7tszYrtg9NQT8EbRT81sKzkN`.
-- Ambiente identificado: Preview, associado ao check Vercel do PR/head branch
-  `agent/verified-access-phase-1b`. A API publica de deployments do GitHub nao
-  retornou um deployment separado com campo `environment`, e a API Vercel exige
-  token para detalhes internos do deployment.
+## Validacoes Locais
+
+- `git diff --check`: passou.
+- `npm run admin:lint`: passou.
+- `npm run admin:build`: passou.
+- `npx supabase db reset`: nao executado localmente por Docker Desktop
+  indisponivel no ambiente Windows; executado com sucesso no CI.
 
 ## Rollback
 
@@ -155,15 +111,16 @@ Rollback dedicado:
 
 - `supabase/rollback/20260716100000_verified_access_phase_1b_rollback.sql`
 
-O rollback remove apenas as sete tabelas centrais e as tres flags de rede
-criadas desligadas. Ele nao remove objetos da Fase 1A, `persons`, `INTERCOM`,
-`VERIFIED_ACCESS` ou `VERIFIED_ACCESS_BACKGROUND_CHECK`.
+Remove triggers, funcoes, tabelas e flags da Fase 1B. Preserva Fase 1A,
+`persons`, `INTERCOM`, `VERIFIED_ACCESS` e
+`VERIFIED_ACCESS_BACKGROUND_CHECK`.
 
 ## Fora de Escopo Confirmado
 
-- Nenhuma implementacao da Fase 1C ou 1D.
-- Nenhuma alteracao no app Expo.
-- Nenhuma alteracao na tabela `persons`.
-- Nenhuma feature flag habilitada.
-- Nenhum deploy manual.
+- Nenhuma Fase 1C ou 1D.
 - Nenhuma migration remota.
+- Nenhuma feature flag habilitada.
+- Nenhuma alteracao em `persons`.
+- Nenhuma alteracao no app Expo.
+- Nenhum deploy manual.
+- Nenhum merge.
