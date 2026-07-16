@@ -14,4 +14,5 @@ revoke all on table public.verified_access_network_signals from public, anon, au
 revoke all on table public.verified_access_network_signal_reviews from public, anon, authenticated, service_role;
 revoke all on table public.verified_access_network_appeals from public, anon, authenticated, service_role;
 
+revoke all on function public.verified_access_network_validate_case_source_subject() from public, anon, authenticated, service_role;
 revoke all on function public.verified_access_network_validate_signal_source_case() from public, anon, authenticated, service_role;

@@ -126,13 +126,13 @@ create table if not exists public.verified_access_network_subject_links (
   constraint verified_access_network_links_assurance_check
     check (identity_assurance_level in ('DOCUMENT_VERIFIED', 'IDENTITY_VERIFIED', 'MANUAL_VERIFIED')),
   constraint verified_access_network_links_status_check
-    check (link_status in ('ACTIVE', 'UNLINKED', 'REVOKED')),
+    check (link_status in ('ACTIVE', 'DISPUTED', 'UNLINKED')),
   constraint verified_access_network_links_reason_check
-    check (link_reason ~ '^[A-Z0-9_]{2,80}$'),
+    check (link_reason in ('IDENTITY_VERIFIED', 'MANUAL_VERIFIED', 'IDENTIFIER_ROTATION', 'SUBJECT_MERGE', 'CORRECTION')),
   constraint verified_access_network_links_unlinked_check
     check (
-      (link_status = 'ACTIVE' and unlinked_at is null)
-      or (link_status <> 'ACTIVE' and unlinked_at is not null)
+      (link_status in ('ACTIVE', 'DISPUTED') and unlinked_at is null)
+      or (link_status = 'UNLINKED' and unlinked_at is not null)
     )
 );
 
@@ -323,6 +323,9 @@ where status = 'ACTIVE';
 create index if not exists idx_verified_access_network_signals_review_due
 on public.verified_access_network_signals(review_due_at);
 
+create unique index if not exists ux_verified_access_network_signals_id_subject
+on public.verified_access_network_signals(id, network_subject_id);
+
 create table if not exists public.verified_access_network_signal_reviews (
   id uuid primary key default gen_random_uuid(),
   signal_id uuid not null references public.verified_access_network_signals(id) on delete cascade,
@@ -351,7 +354,7 @@ on public.verified_access_network_signal_reviews(signal_id, reviewed_at);
 create table if not exists public.verified_access_network_appeals (
   id uuid primary key default gen_random_uuid(),
   network_subject_id uuid not null references public.verified_access_network_subjects(id) on delete restrict,
-  signal_id uuid references public.verified_access_network_signals(id) on delete restrict,
+  signal_id uuid,
   status text not null default 'OPEN',
   request_reference_hash text not null,
   opened_at timestamptz not null default now(),
@@ -376,7 +379,11 @@ create table if not exists public.verified_access_network_appeals (
     check (
       (resolution_code is null or resolution_code ~ '^[A-Z0-9_]{2,80}$')
       and (resolved_by_actor_id is null or char_length(trim(resolved_by_actor_id)) between 2 and 128)
-    )
+    ),
+  constraint verified_access_network_appeals_signal_subject_fk
+    foreign key (signal_id, network_subject_id)
+    references public.verified_access_network_signals(id, network_subject_id)
+    on delete restrict
 );
 
 create index if not exists idx_verified_access_network_appeals_subject_status
@@ -388,6 +395,71 @@ where signal_id is not null;
 
 create index if not exists idx_verified_access_network_appeals_review_due
 on public.verified_access_network_appeals(review_due_at, status);
+
+create or replace function public.verified_access_network_validate_case_source_subject()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_identity_profile_id uuid;
+  v_participant_found boolean := false;
+begin
+  if new.source_type <> 'CONDOMINIUM_REPORT' then
+    if new.source_condominium_id is not null or new.source_participant_id is not null then
+      raise exception 'non-condominium network case sources must not include local tenant participant data'
+        using errcode = '23514';
+    end if;
+
+    return new;
+  end if;
+
+  if new.source_condominium_id is null or new.source_participant_id is null then
+    raise exception 'condominium network reports require source condominium and participant'
+      using errcode = '23514';
+  end if;
+
+  select p.identity_profile_id, true
+    into v_identity_profile_id, v_participant_found
+  from public.verified_access_participants p
+  where p.id = new.source_participant_id
+    and p.condominium_id = new.source_condominium_id;
+
+  if not coalesce(v_participant_found, false) then
+    raise exception 'condominium report source participant must belong to the source condominium'
+      using errcode = '23503';
+  end if;
+
+  if v_identity_profile_id is null then
+    raise exception 'condominium report source participant must have an identity profile'
+      using errcode = 'P0001';
+  end if;
+
+  if not exists (
+    select 1
+    from public.verified_access_network_subject_links l
+    where l.network_subject_id = new.network_subject_id
+      and l.condominium_id = new.source_condominium_id
+      and l.identity_profile_id = v_identity_profile_id
+      and l.link_status in ('ACTIVE', 'DISPUTED')
+  ) then
+    raise exception 'condominium report source participant must be linked to the same network subject'
+      using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists verified_access_network_cases_validate_source_subject
+on public.verified_access_network_security_cases;
+
+create trigger verified_access_network_cases_validate_source_subject
+before insert or update of network_subject_id, source_type, source_condominium_id, source_participant_id
+on public.verified_access_network_security_cases
+for each row
+execute function public.verified_access_network_validate_case_source_subject();
 
 create or replace function public.verified_access_network_validate_signal_source_case()
 returns trigger

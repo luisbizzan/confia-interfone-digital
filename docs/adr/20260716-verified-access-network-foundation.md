@@ -67,6 +67,20 @@ network subject. This is enforced by a composite FK and by a `security invoker`
 trigger that validates source status only; it does not activate signals or
 propagate effects to tenant participants.
 
+Subject links use only `ACTIVE`, `DISPUTED` and `UNLINKED` states with canonical
+reason codes. `ACTIVE` and `DISPUTED` keep `unlinked_at` empty; `UNLINKED`
+requires `unlinked_at`.
+
+Appeals may exist without a signal. When an appeal references a signal, a
+composite FK guarantees that the signal belongs to the same network subject as
+the appeal.
+
+Condominium-originated cases validate their source participant structurally by
+`security invoker` trigger. The participant must belong to the source
+condominium, have an identity profile, and have an `ACTIVE` or `DISPUTED`
+subject link for the same network subject. The trigger only validates; it does
+not create links, cases, signals or participant effects.
+
 ## Consequences
 
 The central model can be tested and reviewed without enabling any tenant-facing
