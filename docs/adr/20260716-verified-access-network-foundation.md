@@ -53,12 +53,19 @@ version but does not implement canonicalization or HMAC generation in SQL.
 
 Network signals are restricted to:
 
-- `MANUAL_REVIEW_REQUIRED`;
-- `REVALIDATION_REQUIRED`;
-- `NETWORK_CREDENTIAL_HOLD`.
+- `INFORM_AUTHORIZED_REVIEWER`;
+- `REVALIDATE_IDENTITY`;
+- `REQUERY_OFFICIAL_SOURCE`;
+- `REQUIRE_MANUAL_REVIEW`;
+- `HOLD_CREDENTIAL`.
 
 The schema intentionally excludes `AUTO_DENY_NETWORK`, `GLOBAL_DENIED` and
 `PERMANENT_BLACKLIST`.
+
+Network signals must reference a `SUBSTANTIATED` source case for the same
+network subject. This is enforced by a composite FK and by a `security invoker`
+trigger that validates source status only; it does not activate signals or
+propagate effects to tenant participants.
 
 ## Consequences
 

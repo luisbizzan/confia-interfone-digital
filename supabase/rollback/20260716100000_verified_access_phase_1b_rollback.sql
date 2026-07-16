@@ -1,3 +1,6 @@
+drop trigger if exists verified_access_network_signals_validate_source_case on public.verified_access_network_signals;
+drop function if exists public.verified_access_network_validate_signal_source_case();
+
 drop table if exists public.verified_access_network_appeals;
 drop table if exists public.verified_access_network_signal_reviews;
 drop table if exists public.verified_access_network_signals;

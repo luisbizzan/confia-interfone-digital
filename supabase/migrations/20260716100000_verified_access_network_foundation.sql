@@ -17,12 +17,12 @@ create table if not exists public.verified_access_network_subjects (
   first_verified_at timestamptz not null,
   last_verified_at timestamptz not null,
   revalidation_due_at timestamptz,
-  retention_expires_at timestamptz,
+  retention_until timestamptz,
   merged_into_subject_id uuid,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint verified_access_network_subjects_status_check
-    check (status in ('ACTIVE', 'REVALIDATION_REQUIRED', 'RETIRED', 'MERGED')),
+    check (status in ('ACTIVE', 'UNDER_REVIEW', 'DISPUTED', 'MERGED', 'RETIRED')),
   constraint verified_access_network_subjects_assurance_check
     check (identity_assurance_level in ('DOCUMENT_VERIFIED', 'IDENTITY_VERIFIED', 'MANUAL_VERIFIED')),
   constraint verified_access_network_subjects_verified_window_check
@@ -30,7 +30,7 @@ create table if not exists public.verified_access_network_subjects (
   constraint verified_access_network_subjects_revalidation_check
     check (revalidation_due_at is null or revalidation_due_at >= first_verified_at),
   constraint verified_access_network_subjects_retention_check
-    check (retention_expires_at is null or retention_expires_at >= first_verified_at),
+    check (retention_until is null or retention_until >= first_verified_at),
   constraint verified_access_network_subjects_merge_status_check
     check (
       (status = 'MERGED' and merged_into_subject_id is not null)
@@ -52,8 +52,8 @@ on public.verified_access_network_subjects(revalidation_due_at)
 where revalidation_due_at is not null;
 
 create index if not exists idx_verified_access_network_subjects_retention
-on public.verified_access_network_subjects(retention_expires_at)
-where retention_expires_at is not null;
+on public.verified_access_network_subjects(retention_until)
+where retention_until is not null;
 
 create table if not exists public.verified_access_network_subject_identifiers (
   id uuid primary key default gen_random_uuid(),
@@ -71,7 +71,7 @@ create table if not exists public.verified_access_network_subject_identifiers (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint verified_access_network_identifiers_type_check
-    check (identifier_type in ('CPF', 'RNM', 'PASSPORT', 'GOVERNMENT_ID', 'PROVIDER_DOCUMENT')),
+    check (identifier_type in ('CPF', 'RNM', 'PASSPORT_WITH_ISSUER')),
   constraint verified_access_network_identifiers_hmac_size_check
     check (char_length(trim(identifier_hmac)) between 16 and 256),
   constraint verified_access_network_identifiers_key_versions_check
@@ -112,12 +112,11 @@ create table if not exists public.verified_access_network_subject_links (
   network_subject_id uuid not null references public.verified_access_network_subjects(id) on delete cascade,
   condominium_id uuid not null references public.condominiums(id) on delete cascade,
   identity_profile_id uuid not null,
-  assurance_level text not null,
   link_status text not null default 'ACTIVE',
-  link_reason_code text not null,
+  link_reason text not null,
+  identity_assurance_level text not null,
   linked_at timestamptz not null default now(),
   unlinked_at timestamptz,
-  unlinked_reason_code text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint verified_access_network_links_profile_tenant_fk
@@ -125,18 +124,16 @@ create table if not exists public.verified_access_network_subject_links (
     references public.verified_access_identity_profiles(id, condominium_id)
     on delete restrict,
   constraint verified_access_network_links_assurance_check
-    check (assurance_level in ('DOCUMENT_VERIFIED', 'IDENTITY_VERIFIED', 'MANUAL_VERIFIED')),
+    check (identity_assurance_level in ('DOCUMENT_VERIFIED', 'IDENTITY_VERIFIED', 'MANUAL_VERIFIED')),
   constraint verified_access_network_links_status_check
     check (link_status in ('ACTIVE', 'UNLINKED', 'REVOKED')),
   constraint verified_access_network_links_reason_check
-    check (link_reason_code ~ '^[A-Z0-9_]{2,80}$'),
+    check (link_reason ~ '^[A-Z0-9_]{2,80}$'),
   constraint verified_access_network_links_unlinked_check
     check (
-      (link_status = 'ACTIVE' and unlinked_at is null and unlinked_reason_code is null)
-      or (link_status <> 'ACTIVE' and unlinked_at is not null and unlinked_reason_code is not null)
-    ),
-  constraint verified_access_network_links_unlinked_reason_check
-    check (unlinked_reason_code is null or unlinked_reason_code ~ '^[A-Z0-9_]{2,80}$')
+      (link_status = 'ACTIVE' and unlinked_at is null)
+      or (link_status <> 'ACTIVE' and unlinked_at is not null)
+    )
 );
 
 create unique index if not exists ux_verified_access_network_links_active_profile
@@ -155,18 +152,23 @@ create table if not exists public.verified_access_network_security_cases (
   source_type text not null,
   source_condominium_id uuid references public.condominiums(id) on delete restrict,
   source_participant_id uuid,
-  status text not null default 'OPEN',
   category text not null,
   severity text not null,
+  status text not null default 'REPORTED',
   evidence_assurance_level text not null,
   summary_code text not null,
-  evidence_reference_hash text not null,
-  metadata_sanitized jsonb not null default '{}'::jsonb,
-  opened_at timestamptz not null default now(),
+  reported_by_actor_type text not null,
+  reported_by_actor_id text not null,
+  reported_at timestamptz not null default now(),
+  triaged_by_actor_id text,
   triaged_at timestamptz,
+  review_due_at timestamptz,
   substantiated_at timestamptz,
   dismissed_at timestamptz,
   closed_at timestamptz,
+  expired_at timestamptz,
+  evidence_reference_hash text,
+  metadata_sanitized jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint verified_access_network_cases_source_participant_fk
@@ -174,37 +176,57 @@ create table if not exists public.verified_access_network_security_cases (
     references public.verified_access_participants(id, condominium_id)
     on delete restrict,
   constraint verified_access_network_cases_source_type_check
-    check (source_type in ('CONDOMINIUM_REPORT', 'PROVIDER_ATTESTATION', 'MANUAL_REVIEW', 'SYSTEM_RECONCILIATION')),
+    check (source_type in ('CONDOMINIUM_REPORT', 'PLATFORM_SECURITY', 'IDENTITY_PROVIDER', 'BACKGROUND_PROVIDER', 'PRIVACY_CORRECTION')),
   constraint verified_access_network_cases_source_check
     check (
       (source_type = 'CONDOMINIUM_REPORT' and source_condominium_id is not null and source_participant_id is not null)
-      or (source_type <> 'CONDOMINIUM_REPORT' and source_participant_id is null)
+      or (source_type <> 'CONDOMINIUM_REPORT' and source_condominium_id is null and source_participant_id is null)
     ),
   constraint verified_access_network_cases_status_check
-    check (status in ('OPEN', 'TRIAGED', 'SUBSTANTIATED', 'DISMISSED', 'CLOSED')),
+    check (status in ('REPORTED', 'TRIAGE', 'UNDER_REVIEW', 'SUBSTANTIATED', 'DISMISSED', 'CLOSED', 'EXPIRED')),
   constraint verified_access_network_cases_category_check
-    check (category in ('IDENTITY_MISMATCH', 'DOCUMENT_FRAUD', 'ACCESS_INCIDENT', 'SECURITY_REVIEW', 'POLICY_VIOLATION')),
+    check (category in (
+      'IDENTITY_IMPERSONATION_SUSPECTED',
+      'DOCUMENT_FRAUD_SUSPECTED',
+      'CREDENTIAL_COMPROMISE_SUSPECTED',
+      'ACCOUNT_TAKEOVER_SUSPECTED',
+      'REPEATED_IDENTITY_MANIPULATION_SUSPECTED',
+      'PLATFORM_SECURITY_INCIDENT',
+      'OFFICIAL_SOURCE_REVALIDATION_REQUIRED'
+    )),
   constraint verified_access_network_cases_severity_check
     check (severity in ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   constraint verified_access_network_cases_evidence_assurance_check
     check (evidence_assurance_level in ('DOCUMENT_VERIFIED', 'IDENTITY_VERIFIED', 'MANUAL_VERIFIED', 'PROVIDER_ASSERTED', 'PLATFORM_EVIDENCE')),
   constraint verified_access_network_cases_summary_code_check
     check (summary_code ~ '^[A-Z0-9_]{2,80}$'),
+  constraint verified_access_network_cases_actor_type_check
+    check (reported_by_actor_type in ('CONDOMINIUM_OPERATOR', 'PLATFORM_OPERATOR', 'IDENTITY_PROVIDER', 'BACKGROUND_PROVIDER', 'PRIVACY_OFFICER')),
+  constraint verified_access_network_cases_actor_id_check
+    check (
+      char_length(trim(reported_by_actor_id)) between 2 and 128
+      and (triaged_by_actor_id is null or char_length(trim(triaged_by_actor_id)) between 2 and 128)
+    ),
   constraint verified_access_network_cases_evidence_hash_check
-    check (char_length(trim(evidence_reference_hash)) between 16 and 256),
+    check (evidence_reference_hash is null or char_length(trim(evidence_reference_hash)) between 16 and 256),
   constraint verified_access_network_cases_metadata_object_check
     check (jsonb_typeof(metadata_sanitized) = 'object'),
   constraint verified_access_network_cases_metadata_sanitized_check
     check (metadata_sanitized::text !~* '(cpf|documento|document|phone|telefone|email|nome|name|biometr|face|token|secret)'),
   constraint verified_access_network_cases_status_dates_check
     check (
-      (status = 'OPEN' and triaged_at is null and substantiated_at is null and dismissed_at is null and closed_at is null)
-      or (status = 'TRIAGED' and triaged_at is not null and substantiated_at is null and dismissed_at is null and closed_at is null)
-      or (status = 'SUBSTANTIATED' and triaged_at is not null and substantiated_at is not null and dismissed_at is null and closed_at is null)
-      or (status = 'DISMISSED' and dismissed_at is not null and substantiated_at is null)
-      or (status = 'CLOSED' and closed_at is not null)
+      (status = 'REPORTED' and triaged_at is null and substantiated_at is null and dismissed_at is null and closed_at is null and expired_at is null)
+      or (status = 'TRIAGE' and triaged_at is not null and substantiated_at is null and dismissed_at is null and closed_at is null and expired_at is null)
+      or (status = 'UNDER_REVIEW' and triaged_at is not null and substantiated_at is null and dismissed_at is null and closed_at is null and expired_at is null)
+      or (status = 'SUBSTANTIATED' and triaged_at is not null and substantiated_at is not null and dismissed_at is null and closed_at is null and expired_at is null)
+      or (status = 'DISMISSED' and dismissed_at is not null and substantiated_at is null and closed_at is null and expired_at is null)
+      or (status = 'CLOSED' and closed_at is not null and expired_at is null)
+      or (status = 'EXPIRED' and expired_at is not null and substantiated_at is null and dismissed_at is null)
     )
 );
+
+create unique index if not exists ux_verified_access_network_cases_id_subject
+on public.verified_access_network_security_cases(id, network_subject_id);
 
 create index if not exists idx_verified_access_network_cases_subject_status
 on public.verified_access_network_security_cases(network_subject_id, status);
@@ -219,30 +241,47 @@ on public.verified_access_network_security_cases(severity, status);
 create table if not exists public.verified_access_network_signals (
   id uuid primary key default gen_random_uuid(),
   network_subject_id uuid not null references public.verified_access_network_subjects(id) on delete restrict,
-  source_case_id uuid not null references public.verified_access_network_security_cases(id) on delete restrict,
+  source_case_id uuid not null,
   category text not null,
-  effect text not null,
-  status text not null default 'PROPOSED',
   severity text not null,
-  reason_code text not null,
+  effect text not null,
+  status text not null default 'DRAFT',
   policy_version integer not null,
+  reason_code text not null,
   valid_from timestamptz not null,
   expires_at timestamptz not null,
-  review_due_at timestamptz,
+  review_due_at timestamptz not null,
+  proposed_by_actor_type text not null,
+  proposed_by_actor_id text not null,
+  proposed_at timestamptz not null default now(),
+  activated_by_actor_id text,
   activated_at timestamptz,
   suspended_at timestamptz,
   revoked_at timestamptz,
-  revoked_reason_code text,
-  created_by_actor_type text not null default 'SYSTEM',
-  created_by_actor_id text,
+  revocation_reason_code text,
+  rejected_at timestamptz,
+  rejection_reason_code text,
+  expired_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
+  constraint verified_access_network_signals_case_subject_fk
+    foreign key (source_case_id, network_subject_id)
+    references public.verified_access_network_security_cases(id, network_subject_id)
+    on delete restrict,
   constraint verified_access_network_signals_category_check
-    check (category in ('SECURITY_REVIEW', 'DOCUMENT_FRAUD', 'ACCESS_INCIDENT', 'IDENTITY_REVALIDATION')),
+    check (category in (
+      'IDENTITY_IMPERSONATION_CONFIRMED',
+      'DOCUMENT_FRAUD_CONFIRMED',
+      'CREDENTIAL_COMPROMISED',
+      'ACCOUNT_TAKEOVER_CONFIRMED',
+      'REPEATED_IDENTITY_MANIPULATION_CONFIRMED',
+      'PLATFORM_SECURITY_SUSPENSION',
+      'OFFICIAL_SOURCE_REVALIDATION_REQUIRED'
+    )),
   constraint verified_access_network_signals_effect_check
-    check (effect in ('MANUAL_REVIEW_REQUIRED', 'REVALIDATION_REQUIRED', 'NETWORK_CREDENTIAL_HOLD')),
+    check (effect in ('INFORM_AUTHORIZED_REVIEWER', 'REVALIDATE_IDENTITY', 'REQUERY_OFFICIAL_SOURCE', 'REQUIRE_MANUAL_REVIEW', 'HOLD_CREDENTIAL')),
   constraint verified_access_network_signals_status_check
-    check (status in ('PROPOSED', 'ACTIVE', 'SUSPENDED', 'REVOKED', 'EXPIRED')),
+    check (status in ('DRAFT', 'UNDER_REVIEW', 'ACTIVE', 'SUSPENDED', 'REVOKED', 'EXPIRED', 'REJECTED')),
   constraint verified_access_network_signals_severity_check
     check (severity in ('LOW', 'MEDIUM', 'HIGH', 'CRITICAL')),
   constraint verified_access_network_signals_reason_check
@@ -250,21 +289,28 @@ create table if not exists public.verified_access_network_signals (
   constraint verified_access_network_signals_policy_version_check
     check (policy_version > 0),
   constraint verified_access_network_signals_window_check
-    check (expires_at > valid_from and (review_due_at is null or (review_due_at > valid_from and review_due_at <= expires_at))),
+    check (expires_at > valid_from and review_due_at > valid_from and review_due_at <= expires_at),
   constraint verified_access_network_signals_status_dates_check
     check (
-      (status = 'PROPOSED' and activated_at is null and suspended_at is null and revoked_at is null)
-      or (status = 'ACTIVE' and activated_at is not null and suspended_at is null and revoked_at is null)
-      or (status = 'SUSPENDED' and activated_at is not null and suspended_at is not null and revoked_at is null)
-      or (status = 'REVOKED' and revoked_at is not null and revoked_reason_code is not null)
-      or (status = 'EXPIRED')
+      (status in ('DRAFT', 'UNDER_REVIEW') and activated_at is null and suspended_at is null and revoked_at is null and rejected_at is null and expired_at is null)
+      or (status = 'ACTIVE' and activated_at is not null and suspended_at is null and revoked_at is null and rejected_at is null and expired_at is null)
+      or (status = 'SUSPENDED' and activated_at is not null and suspended_at is not null and revoked_at is null and rejected_at is null and expired_at is null)
+      or (status = 'REVOKED' and revoked_at is not null and revocation_reason_code is not null)
+      or (status = 'EXPIRED' and expired_at is not null and revoked_at is null and rejected_at is null)
+      or (status = 'REJECTED' and rejected_at is not null and rejection_reason_code is not null and activated_at is null)
     ),
-  constraint verified_access_network_signals_revoked_reason_check
-    check (revoked_reason_code is null or revoked_reason_code ~ '^[A-Z0-9_]{2,80}$'),
+  constraint verified_access_network_signals_reason_codes_check
+    check (
+      (revocation_reason_code is null or revocation_reason_code ~ '^[A-Z0-9_]{2,80}$')
+      and (rejection_reason_code is null or rejection_reason_code ~ '^[A-Z0-9_]{2,80}$')
+    ),
   constraint verified_access_network_signals_actor_type_check
-    check (created_by_actor_type in ('SYSTEM', 'BACKOFFICE_USER', 'SECURITY_REVIEWER')),
+    check (proposed_by_actor_type in ('SYSTEM', 'PLATFORM_OPERATOR', 'SECURITY_REVIEWER', 'PRIVACY_OFFICER')),
   constraint verified_access_network_signals_actor_id_check
-    check (created_by_actor_id is null or char_length(trim(created_by_actor_id)) between 2 and 128)
+    check (
+      char_length(trim(proposed_by_actor_id)) between 2 and 128
+      and (activated_by_actor_id is null or char_length(trim(activated_by_actor_id)) between 2 and 128)
+    )
 );
 
 create index if not exists idx_verified_access_network_signals_subject_status
@@ -275,30 +321,29 @@ on public.verified_access_network_signals(network_subject_id, effect, severity, 
 where status = 'ACTIVE';
 
 create index if not exists idx_verified_access_network_signals_review_due
-on public.verified_access_network_signals(review_due_at)
-where review_due_at is not null;
+on public.verified_access_network_signals(review_due_at);
 
 create table if not exists public.verified_access_network_signal_reviews (
   id uuid primary key default gen_random_uuid(),
   signal_id uuid not null references public.verified_access_network_signals(id) on delete cascade,
+  reviewer_actor_id text not null,
   reviewer_role text not null,
   decision text not null,
-  decision_reason_code text not null,
+  reason_code text not null,
   reviewed_at timestamptz not null default now(),
-  reviewer_actor_id text,
   created_at timestamptz not null default now(),
   constraint verified_access_network_reviews_role_check
     check (reviewer_role in ('NETWORK_REVIEWER', 'PRIVACY_REVIEWER', 'SECURITY_REVIEWER')),
   constraint verified_access_network_reviews_decision_check
-    check (decision in ('APPROVE_ACTIVATION', 'KEEP_PROPOSED', 'SUSPEND', 'REVOKE', 'EXPIRE')),
+    check (decision in ('APPROVE', 'REJECT', 'REQUEST_CHANGES')),
   constraint verified_access_network_reviews_reason_check
-    check (decision_reason_code ~ '^[A-Z0-9_]{2,80}$'),
+    check (reason_code ~ '^[A-Z0-9_]{2,80}$'),
   constraint verified_access_network_reviews_actor_check
-    check (reviewer_actor_id is null or char_length(trim(reviewer_actor_id)) between 2 and 128)
+    check (char_length(trim(reviewer_actor_id)) between 2 and 128)
 );
 
-create unique index if not exists ux_verified_access_network_reviews_signal_decision
-on public.verified_access_network_signal_reviews(signal_id, decision);
+create unique index if not exists ux_verified_access_network_reviews_signal_actor
+on public.verified_access_network_signal_reviews(signal_id, reviewer_actor_id);
 
 create index if not exists idx_verified_access_network_reviews_signal
 on public.verified_access_network_signal_reviews(signal_id, reviewed_at);
@@ -311,23 +356,27 @@ create table if not exists public.verified_access_network_appeals (
   request_reference_hash text not null,
   opened_at timestamptz not null default now(),
   review_due_at timestamptz not null,
-  resolved_at timestamptz,
   resolution_code text,
+  resolved_by_actor_id text,
+  resolved_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint verified_access_network_appeals_status_check
-    check (status in ('OPEN', 'UNDER_REVIEW', 'APPROVED', 'DENIED', 'CANCELLED')),
+    check (status in ('OPEN', 'UNDER_REVIEW', 'UPHELD', 'AMENDED', 'REVOKED', 'CLOSED')),
   constraint verified_access_network_appeals_reference_hash_check
     check (char_length(trim(request_reference_hash)) between 16 and 256),
   constraint verified_access_network_appeals_due_check
     check (review_due_at > opened_at),
   constraint verified_access_network_appeals_resolution_check
     check (
-      (status in ('APPROVED', 'DENIED', 'CANCELLED') and resolved_at is not null and resolution_code is not null)
-      or (status in ('OPEN', 'UNDER_REVIEW') and resolved_at is null and resolution_code is null)
+      (status in ('UPHELD', 'AMENDED', 'REVOKED', 'CLOSED') and resolved_at is not null and resolution_code is not null and resolved_by_actor_id is not null)
+      or (status in ('OPEN', 'UNDER_REVIEW') and resolved_at is null and resolution_code is null and resolved_by_actor_id is null)
     ),
   constraint verified_access_network_appeals_resolution_code_check
-    check (resolution_code is null or resolution_code ~ '^[A-Z0-9_]{2,80}$')
+    check (
+      (resolution_code is null or resolution_code ~ '^[A-Z0-9_]{2,80}$')
+      and (resolved_by_actor_id is null or char_length(trim(resolved_by_actor_id)) between 2 and 128)
+    )
 );
 
 create index if not exists idx_verified_access_network_appeals_subject_status
@@ -340,6 +389,44 @@ where signal_id is not null;
 create index if not exists idx_verified_access_network_appeals_review_due
 on public.verified_access_network_appeals(review_due_at, status);
 
+create or replace function public.verified_access_network_validate_signal_source_case()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_case_status text;
+begin
+  select status
+    into v_case_status
+  from public.verified_access_network_security_cases
+  where id = new.source_case_id
+    and network_subject_id = new.network_subject_id;
+
+  if v_case_status is null then
+    raise exception 'network signal source case must belong to the same network subject'
+      using errcode = '23503';
+  end if;
+
+  if v_case_status <> 'SUBSTANTIATED' then
+    raise exception 'network signal source case must be SUBSTANTIATED'
+      using errcode = 'P0001';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists verified_access_network_signals_validate_source_case
+on public.verified_access_network_signals;
+
+create trigger verified_access_network_signals_validate_source_case
+before insert or update of source_case_id, network_subject_id
+on public.verified_access_network_signals
+for each row
+execute function public.verified_access_network_validate_signal_source_case();
+
 comment on table public.verified_access_network_subjects is
   'Central pseudonymous Verified Access network subject registry for Phase 1B. No tenant PII is stored here.';
 comment on table public.verified_access_network_subject_identifiers is
@@ -347,10 +434,10 @@ comment on table public.verified_access_network_subject_identifiers is
 comment on table public.verified_access_network_subject_links is
   'Links central network subjects to local tenant identity profiles without copying tenant civil PII.';
 comment on table public.verified_access_network_security_cases is
-  'Central sanitized security cases. Open cases do not produce tenant effects in Phase 1B.';
+  'Central sanitized security cases. Reported, triage and under-review cases do not produce tenant effects in Phase 1B.';
 comment on table public.verified_access_network_signals is
-  'Central network signals restricted to manual review, revalidation or credential hold effects.';
+  'Central network signals restricted to authorized reviewer information, revalidation, official-source requery, manual review or credential hold effects.';
 comment on table public.verified_access_network_signal_reviews is
-  'Human review decisions for proposed or active network signals.';
+  'Human review decisions for network signals.';
 comment on table public.verified_access_network_appeals is
   'Appeal tracking using hashed request references and no central civil PII.';
