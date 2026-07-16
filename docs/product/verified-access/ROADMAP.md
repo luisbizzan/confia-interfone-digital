@@ -6,8 +6,8 @@ Atualizado em 16 de julho de 2026.
 |---|---|---|
 | Fase 0 — descoberta | Concluída | stack, tenant e módulos mapeados |
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
-| Fase 1B — fundação inerte da Rede Confia | Autorizada | branch `agent/verified-access-phase-1b` |
-| Fase 1C — invariantes e operações restritas | Não iniciada | depende da 1B |
+| Fase 1B — fundação inerte da Rede Confia | Implementada / aguardando merge | draft PR `#3`, branch `agent/verified-access-phase-1b` |
+| Fase 1C — invariantes e operações restritas | Não autorizada | depende do merge da 1B e de novo contrato versionado |
 | Fase 1D — contratos e providers fake | Não iniciada | depende das portas aprovadas |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
@@ -37,7 +37,7 @@ As migrations ainda não foram aplicadas remotamente.
 
 ## Fase 1B atual
 
-Criar, de forma inerte:
+Implementada nesta branch, em revisão e aguardando merge, de forma inerte:
 
 - network subjects;
 - identifiers;
@@ -51,7 +51,7 @@ Criar, de forma inerte:
 - testes de não propagação;
 - rollback e CI.
 
-Não criar:
+Não foi criado:
 
 - HMAC real;
 - API;
@@ -60,6 +60,11 @@ Não criar:
 - ativação operacional;
 - bloqueio;
 - UI.
+
+## Fase 1C
+
+A Fase 1C permanece não autorizada. Aguardar merge da Fase 1B e novo
+contrato versionado antes de iniciar qualquer implementação.
 
 ## Migration drift
 
