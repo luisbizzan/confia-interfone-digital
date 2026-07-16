@@ -1,0 +1,355 @@
+\set ON_ERROR_STOP on
+
+begin;
+
+insert into public.roles (id, name)
+values ('12121212-1111-4111-8111-111111111111', 'VERIFIED_ACCESS_NETWORK_TEST_ROLE')
+on conflict (name) do update
+  set name = excluded.name;
+
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values
+  ('33333333-1b1b-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'verified-access-network-a@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('33333333-1b1b-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'verified-access-network-b@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now())
+on conflict (id) do nothing;
+
+insert into public.condominiums (id, name, document)
+values
+  ('11111111-1b1b-4000-8000-000000000001', 'Verified Access Network Test A', 'VA-1B-A'),
+  ('11111111-1b1b-4000-8000-000000000002', 'Verified Access Network Test B', 'VA-1B-B')
+on conflict (id) do nothing;
+
+insert into public.units (id, condominium_id, type, block, number)
+values
+  ('22222222-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', 'APARTMENT', 'A', '101'),
+  ('22222222-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', 'APARTMENT', 'B', '202')
+on conflict (id) do nothing;
+
+insert into public.user_profiles (id, condominium_id, role_id)
+values
+  ('33333333-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '12121212-1111-4111-8111-111111111111'),
+  ('33333333-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '12121212-1111-4111-8111-111111111111')
+on conflict (id) do update
+  set condominium_id = excluded.condominium_id,
+      role_id = excluded.role_id;
+
+insert into public.verified_access_policies (
+  id,
+  condominium_id,
+  version,
+  status,
+  visitor_identity_mode,
+  service_identity_mode,
+  visitor_background_mode,
+  service_background_mode,
+  content_checksum
+)
+values
+  ('44444444-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', repeat('1', 64)),
+  ('44444444-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', repeat('2', 64));
+
+insert into public.verified_access_requests (
+  id,
+  condominium_id,
+  unit_id,
+  requested_by_user_id,
+  request_type,
+  starts_at,
+  ends_at,
+  timezone,
+  participant_limit,
+  policy_id,
+  policy_version
+)
+values
+  ('55555555-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '22222222-1b1b-4000-8000-000000000001', '33333333-1b1b-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000001', 1),
+  ('55555555-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '22222222-1b1b-4000-8000-000000000002', '33333333-1b1b-4000-8000-000000000002', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000002', 1);
+
+insert into public.verified_access_participant_slots (id, condominium_id, request_id, slot_number, status, claimed_at)
+values
+  ('66666666-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000001', 1, 'OPEN', null),
+  ('66666666-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '55555555-1b1b-4000-8000-000000000002', 1, 'OPEN', null);
+
+insert into public.verified_access_identity_profiles (
+  id,
+  condominium_id,
+  cpf_ciphertext,
+  cpf_tenant_hmac,
+  document_type,
+  document_number_ciphertext,
+  document_number_tenant_hmac,
+  full_name_ciphertext,
+  encryption_key_version,
+  hmac_key_version,
+  identity_assurance_level
+)
+values
+  ('77777777-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '\x01'::bytea, repeat('a', 32), 'CPF', '\x02'::bytea, repeat('b', 32), '\x03'::bytea, 1, 1, 'IDENTITY_VERIFIED'),
+  ('77777777-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '\x04'::bytea, repeat('c', 32), 'CPF', '\x05'::bytea, repeat('d', 32), '\x06'::bytea, 1, 1, 'IDENTITY_VERIFIED');
+
+insert into public.verified_access_participants (
+  id,
+  condominium_id,
+  request_id,
+  slot_id,
+  identity_profile_id,
+  registration_status,
+  identity_status,
+  background_status,
+  network_status,
+  eligibility_status,
+  local_decision,
+  local_decision_reason_code
+)
+values
+  ('88888888-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000001', '66666666-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'DENIED_MANUAL', 'DENIED_MANUAL', 'LOCAL_DENIED'),
+  ('88888888-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '55555555-1b1b-4000-8000-000000000002', '66666666-1b1b-4000-8000-000000000002', '77777777-1b1b-4000-8000-000000000002', 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING', null, null);
+
+insert into public.verified_access_network_subjects (
+  id,
+  status,
+  identity_assurance_level,
+  first_verified_at,
+  last_verified_at,
+  revalidation_due_at,
+  retention_expires_at
+)
+values
+  ('99999999-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', now(), now(), now() + interval '90 days', now() + interval '365 days'),
+  ('99999999-1b1b-4000-8000-000000000002', 'ACTIVE', 'IDENTITY_VERIFIED', now(), now(), now() + interval '90 days', now() + interval '365 days');
+
+create or replace function pg_temp.expect_error(p_sql text, p_expected_sqlstate text, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  execute p_sql;
+  raise exception 'Expected % for %', p_expected_sqlstate, p_label
+    using errcode = 'ZX001';
+exception
+  when others then
+    if sqlstate <> p_expected_sqlstate then
+      raise exception 'Expected %, got % for %', p_expected_sqlstate, sqlstate, p_label;
+    end if;
+end;
+$$;
+
+insert into public.verified_access_network_subject_identifiers (
+  network_subject_id,
+  identifier_type,
+  identifier_hmac,
+  hmac_key_version,
+  canonicalization_version,
+  status,
+  is_primary,
+  verified_at
+)
+values (
+  '99999999-1b1b-4000-8000-000000000001',
+  'CPF',
+  repeat('n', 32),
+  1,
+  1,
+  'ACTIVE',
+  true,
+  now()
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000002', 'CPF', repeat('n', 32), 1, 1, now())$$, '23505', 'duplicate active network HMAC rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'PHONE', repeat('p', 32), 1, 1, now())$$, '23514', 'phone is not a network identifier');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'FACE_TEMPLATE', repeat('f', 32), 1, 1, now())$$, '23514', 'face biometric is not a network identifier');
+
+insert into public.verified_access_network_subject_links (
+  network_subject_id,
+  condominium_id,
+  identity_profile_id,
+  assurance_level,
+  link_reason_code
+)
+values (
+  '99999999-1b1b-4000-8000-000000000001',
+  '11111111-1b1b-4000-8000-000000000001',
+  '77777777-1b1b-4000-8000-000000000001',
+  'IDENTITY_VERIFIED',
+  'VERIFIED_IDENTIFIER_MATCH'
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, assurance_level, link_reason_code) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000002', 'IDENTITY_VERIFIED', 'CROSS_TENANT_LINK')$$, '23503', 'cross-tenant local profile link rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, assurance_level, link_reason_code) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'IDENTITY_VERIFIED', 'DUPLICATE_ACTIVE_PROFILE_LINK')$$, '23505', 'local identity profile has one active network link');
+
+do $$
+begin
+  if exists (
+    select 1
+    from public.verified_access_network_signals s
+    join public.verified_access_participants p
+      on p.identity_profile_id = '77777777-1b1b-4000-8000-000000000001'
+    where p.local_decision_reason_code = 'LOCAL_DENIED'
+  ) then
+    raise exception 'LOCAL_DENIED created a network signal';
+  end if;
+end $$;
+
+insert into public.verified_access_network_security_cases (
+  id,
+  network_subject_id,
+  source_type,
+  source_condominium_id,
+  source_participant_id,
+  status,
+  category,
+  severity,
+  evidence_assurance_level,
+  summary_code,
+  evidence_reference_hash,
+  metadata_sanitized
+)
+values (
+  'aaaaaaaa-1b1b-4000-8000-000000000001',
+  '99999999-1b1b-4000-8000-000000000001',
+  'CONDOMINIUM_REPORT',
+  '11111111-1b1b-4000-8000-000000000001',
+  '88888888-1b1b-4000-8000-000000000001',
+  'OPEN',
+  'SECURITY_REVIEW',
+  'MEDIUM',
+  'MANUAL_VERIFIED',
+  'LOCAL_INCIDENT_REVIEW',
+  repeat('e', 32),
+  '{"reason_code":"LOCAL_INCIDENT_REVIEW"}'::jsonb
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, evidence_reference_hash, metadata_sanitized) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000002', '88888888-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'MEDIUM', 'MANUAL_VERIFIED', 'CROSS_TENANT_CASE', repeat('x', 32), '{"reason_code":"CROSS_TENANT_CASE"}'::jsonb)$$, '23503', 'cross-tenant case participant rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, evidence_reference_hash, metadata_sanitized) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'MEDIUM', 'MANUAL_VERIFIED', 'BAD_METADATA', repeat('y', 32), '{"cpf":"123"}'::jsonb)$$, '23514', 'central case metadata rejects civil PII aliases');
+
+do $$
+begin
+  if exists (
+    select 1
+    from public.verified_access_network_signals
+    where network_subject_id = '99999999-1b1b-4000-8000-000000000001'
+  ) then
+    raise exception 'OPEN security case created a network signal';
+  end if;
+
+  if exists (
+    select 1
+    from public.verified_access_participants
+    where condominium_id = '11111111-1b1b-4000-8000-000000000002'
+      and network_status <> 'NOT_ENABLED'
+  ) then
+    raise exception 'OPEN case affected another condominium';
+  end if;
+end $$;
+
+update public.verified_access_network_security_cases
+set status = 'SUBSTANTIATED',
+    triaged_at = now(),
+    substantiated_at = now()
+where id = 'aaaaaaaa-1b1b-4000-8000-000000000001';
+
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, effect, severity, reason_code, policy_version, valid_from, expires_at) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'AUTO_DENY_NETWORK', 'HIGH', 'AUTO_DENY_NETWORK', 1, now(), now() + interval '30 days')$$, '23514', 'AUTO_DENY_NETWORK is not a valid network effect');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, effect, severity, reason_code, policy_version, valid_from, expires_at) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'PERMANENT_BLACKLIST', 'HIGH', 'PERMANENT_BLACKLIST', 1, now(), now() + interval '30 days')$$, '23514', 'PERMANENT_BLACKLIST is not a valid network effect');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, effect, severity, reason_code, policy_version, valid_from, expires_at, status) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'MANUAL_REVIEW_REQUIRED', 'HIGH', 'BAD_WINDOW', 1, now(), now() - interval '1 day', 'PROPOSED')$$, '23514', 'network signal expiration must be after valid_from');
+
+insert into public.verified_access_network_signals (
+  id,
+  network_subject_id,
+  source_case_id,
+  category,
+  effect,
+  status,
+  severity,
+  reason_code,
+  policy_version,
+  valid_from,
+  expires_at,
+  review_due_at,
+  activated_at
+)
+values (
+  'bbbbbbbb-1b1b-4000-8000-000000000001',
+  '99999999-1b1b-4000-8000-000000000001',
+  'aaaaaaaa-1b1b-4000-8000-000000000001',
+  'SECURITY_REVIEW',
+  'MANUAL_REVIEW_REQUIRED',
+  'ACTIVE',
+  'HIGH',
+  'SUBSTANTIATED_REVIEW',
+  1,
+  now() + interval '1 hour',
+  now() + interval '30 days',
+  now() + interval '15 days',
+  now()
+);
+
+do $$
+begin
+  if exists (
+    select 1
+    from public.verified_access_network_signals
+    where status = 'ACTIVE'
+      and expires_at <= now()
+  ) then
+    raise exception 'expired active signal can become actionable';
+  end if;
+
+  if exists (
+    select 1
+    from public.verified_access_participants
+    where condominium_id = '11111111-1b1b-4000-8000-000000000002'
+      and network_status <> 'NOT_ENABLED'
+  ) then
+    raise exception 'active central signal was propagated to another condominium';
+  end if;
+end $$;
+
+insert into public.verified_access_network_signal_reviews (
+  signal_id,
+  reviewer_role,
+  decision,
+  decision_reason_code,
+  reviewer_actor_id
+)
+values (
+  'bbbbbbbb-1b1b-4000-8000-000000000001',
+  'SECURITY_REVIEWER',
+  'APPROVE_ACTIVATION',
+  'REVIEW_APPROVED',
+  'reviewer-1'
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_signal_reviews (signal_id, reviewer_role, decision, decision_reason_code) values ('bbbbbbbb-1b1b-4000-8000-000000000001', 'SECURITY_REVIEWER', 'APPROVE_ACTIVATION', 'REVIEW_DUPLICATE')$$, '23505', 'duplicate signal review decision rejected');
+
+insert into public.verified_access_network_appeals (
+  network_subject_id,
+  signal_id,
+  status,
+  request_reference_hash,
+  opened_at,
+  review_due_at
+)
+values (
+  '99999999-1b1b-4000-8000-000000000001',
+  'bbbbbbbb-1b1b-4000-8000-000000000001',
+  'OPEN',
+  repeat('r', 32),
+  now(),
+  now() + interval '10 days'
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, status, request_reference_hash, opened_at, review_due_at, resolved_at) values ('99999999-1b1b-4000-8000-000000000001', 'APPROVED', repeat('a', 32), now(), now() + interval '10 days', now())$$, '23514', 'resolved appeal requires resolution code');
+
+commit;
