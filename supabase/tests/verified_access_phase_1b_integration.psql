@@ -75,12 +75,16 @@ insert into public.verified_access_requests (
 )
 values
   ('55555555-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '22222222-1b1b-4000-8000-000000000001', '33333333-1b1b-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000001', 1),
-  ('55555555-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '22222222-1b1b-4000-8000-000000000002', '33333333-1b1b-4000-8000-000000000002', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000002', 1);
+  ('55555555-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '22222222-1b1b-4000-8000-000000000002', '33333333-1b1b-4000-8000-000000000002', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000002', 1),
+  ('55555555-1b1b-4000-8000-000000000003', '11111111-1b1b-4000-8000-000000000001', '22222222-1b1b-4000-8000-000000000001', '33333333-1b1b-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000001', 1),
+  ('55555555-1b1b-4000-8000-000000000004', '11111111-1b1b-4000-8000-000000000001', '22222222-1b1b-4000-8000-000000000001', '33333333-1b1b-4000-8000-000000000001', 'VISITOR', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1b1b-4000-8000-000000000001', 1);
 
 insert into public.verified_access_participant_slots (id, condominium_id, request_id, slot_number, status, claimed_at)
 values
   ('66666666-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000001', 1, 'OPEN', null),
-  ('66666666-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '55555555-1b1b-4000-8000-000000000002', 1, 'OPEN', null);
+  ('66666666-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '55555555-1b1b-4000-8000-000000000002', 1, 'OPEN', null),
+  ('66666666-1b1b-4000-8000-000000000003', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000003', 1, 'OPEN', null),
+  ('66666666-1b1b-4000-8000-000000000004', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000004', 1, 'OPEN', null);
 
 insert into public.verified_access_identity_profiles (
   id,
@@ -97,7 +101,8 @@ insert into public.verified_access_identity_profiles (
 )
 values
   ('77777777-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '\x01'::bytea, repeat('a', 32), 'CPF', '\x02'::bytea, repeat('b', 32), '\x03'::bytea, 1, 1, 'IDENTITY_VERIFIED'),
-  ('77777777-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '\x04'::bytea, repeat('c', 32), 'CPF', '\x05'::bytea, repeat('d', 32), '\x06'::bytea, 1, 1, 'IDENTITY_VERIFIED');
+  ('77777777-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '\x04'::bytea, repeat('c', 32), 'CPF', '\x05'::bytea, repeat('d', 32), '\x06'::bytea, 1, 1, 'IDENTITY_VERIFIED'),
+  ('77777777-1b1b-4000-8000-000000000003', '11111111-1b1b-4000-8000-000000000001', '\x07'::bytea, repeat('e', 32), 'CPF', '\x08'::bytea, repeat('f', 32), '\x09'::bytea, 1, 1, 'IDENTITY_VERIFIED');
 
 insert into public.verified_access_participants (
   id,
@@ -115,7 +120,9 @@ insert into public.verified_access_participants (
 )
 values
   ('88888888-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000001', '66666666-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'DENIED_MANUAL', 'DENIED_MANUAL', 'LOCAL_DENIED'),
-  ('88888888-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '55555555-1b1b-4000-8000-000000000002', '66666666-1b1b-4000-8000-000000000002', '77777777-1b1b-4000-8000-000000000002', 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING', null, null);
+  ('88888888-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '55555555-1b1b-4000-8000-000000000002', '66666666-1b1b-4000-8000-000000000002', '77777777-1b1b-4000-8000-000000000002', 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING', null, null),
+  ('88888888-1b1b-4000-8000-000000000003', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000003', '66666666-1b1b-4000-8000-000000000003', null, 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING', null, null),
+  ('88888888-1b1b-4000-8000-000000000004', '11111111-1b1b-4000-8000-000000000001', '55555555-1b1b-4000-8000-000000000004', '66666666-1b1b-4000-8000-000000000004', '77777777-1b1b-4000-8000-000000000003', 'SUBMITTED', 'IDENTITY_VERIFIED', 'NOT_REQUIRED', 'NOT_ENABLED', 'PENDING', null, null);
 
 insert into public.verified_access_network_subjects (
   id,
@@ -211,19 +218,27 @@ insert into public.verified_access_network_subject_links (
   network_subject_id,
   condominium_id,
   identity_profile_id,
+  link_status,
   identity_assurance_level,
-  link_reason
+  link_reason,
+  unlinked_at
 )
-values (
-  '99999999-1b1b-4000-8000-000000000001',
-  '11111111-1b1b-4000-8000-000000000001',
-  '77777777-1b1b-4000-8000-000000000001',
-  'IDENTITY_VERIFIED',
-  'VERIFIED_IDENTIFIER_MATCH'
-);
+values
+  ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', 'IDENTITY_VERIFIED', null),
+  ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000002', '77777777-1b1b-4000-8000-000000000002', 'DISPUTED', 'MANUAL_VERIFIED', 'MANUAL_VERIFIED', null),
+  ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'UNLINKED', 'IDENTITY_VERIFIED', 'IDENTIFIER_ROTATION', now()),
+  ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'UNLINKED', 'IDENTITY_VERIFIED', 'SUBJECT_MERGE', now()),
+  ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'UNLINKED', 'IDENTITY_VERIFIED', 'CORRECTION', now());
 
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000002', 'IDENTITY_VERIFIED', 'CROSS_TENANT_LINK')$$, '23503', 'cross-tenant local profile link rejected');
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'IDENTITY_VERIFIED', 'DUPLICATE_ACTIVE_PROFILE_LINK')$$, '23505', 'local identity profile has one active network link');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000002', 'ACTIVE', 'IDENTITY_VERIFIED', 'IDENTITY_VERIFIED')$$, '23503', 'cross-tenant local profile link rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', 'IDENTITY_VERIFIED')$$, '23505', 'local identity profile has one active network link');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'REVOKED', 'IDENTITY_VERIFIED', 'CORRECTION')$$, '23514', 'revoked link status rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', 'VERIFIED_IDENTIFIER_MATCH')$$, '23514', 'old verified identifier match link reason rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', 'CROSS_TENANT_LINK')$$, '23514', 'cross tenant link reason rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', 'LOCAL_DENIED')$$, '23514', 'local denied link reason rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason, unlinked_at) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', 'CORRECTION', now())$$, '23514', 'active link with unlinked_at rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason, unlinked_at) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'DISPUTED', 'IDENTITY_VERIFIED', 'CORRECTION', now())$$, '23514', 'disputed link with unlinked_at rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, link_status, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000001', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'UNLINKED', 'IDENTITY_VERIFIED', 'CORRECTION')$$, '23514', 'unlinked link without unlinked_at rejected');
 
 do $$
 begin
@@ -275,6 +290,39 @@ insert into public.verified_access_network_security_cases (
   id,
   network_subject_id,
   source_type,
+  source_condominium_id,
+  source_participant_id,
+  status,
+  category,
+  severity,
+  evidence_assurance_level,
+  summary_code,
+  reported_by_actor_type,
+  reported_by_actor_id,
+  evidence_reference_hash,
+  metadata_sanitized
+)
+values (
+  'aaaaaaaa-1b1b-4000-8000-000000000006',
+  '99999999-1b1b-4000-8000-000000000002',
+  'CONDOMINIUM_REPORT',
+  '11111111-1b1b-4000-8000-000000000002',
+  '88888888-1b1b-4000-8000-000000000002',
+  'REPORTED',
+  'DOCUMENT_FRAUD_SUSPECTED',
+  'MEDIUM',
+  'MANUAL_VERIFIED',
+  'DISPUTED_LINK_REPORT',
+  'CONDOMINIUM_OPERATOR',
+  'operator-2',
+  repeat('j', 32),
+  '{"reason_code":"DISPUTED_LINK_REPORT"}'::jsonb
+);
+
+insert into public.verified_access_network_security_cases (
+  id,
+  network_subject_id,
+  source_type,
   status,
   category,
   severity,
@@ -298,6 +346,9 @@ values
 select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', null, null, 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'MISSING_LOCAL_SOURCE', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, '23514', 'condominium report requires condominium and participant');
 select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY_INCIDENT', 'HIGH', 'PLATFORM_EVIDENCE', 'PLATFORM_WITH_LOCAL_SOURCE', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'non-condominium report rejects local participant');
 select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000002', '88888888-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'CROSS_TENANT_CASE', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, '23503', 'cross-tenant case participant rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000003', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'PARTICIPANT_NO_PROFILE', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, 'P0001', 'condominium report participant without identity profile rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000004', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'PARTICIPANT_NO_LINK', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, 'P0001', 'condominium report participant without same-subject link rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000003', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'PARTICIPANT_OTHER_SUBJECT', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, 'P0001', 'condominium report participant linked to another subject rejected');
 select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PROVIDER_ATTESTATION', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'OLD_SOURCE', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'old source type rejected');
 select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, status, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'OPEN', 'PLATFORM_SECURITY_INCIDENT', 'MEDIUM', 'PLATFORM_EVIDENCE', 'OLD_STATUS', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'old case status rejected');
 select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'POLICY_VIOLATION', 'MEDIUM', 'PLATFORM_EVIDENCE', 'POLICY_VIOLATION', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'policy violation rejected as network case category');
@@ -456,6 +507,21 @@ values (
 
 insert into public.verified_access_network_appeals (
   network_subject_id,
+  status,
+  request_reference_hash,
+  opened_at,
+  review_due_at
+)
+values (
+  '99999999-1b1b-4000-8000-000000000002',
+  'OPEN',
+  repeat('t', 32),
+  now(),
+  now() + interval '10 days'
+);
+
+insert into public.verified_access_network_appeals (
+  network_subject_id,
   signal_id,
   status,
   request_reference_hash,
@@ -477,6 +543,7 @@ values (
   now()
 );
 
+select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, signal_id, status, request_reference_hash, opened_at, review_due_at) values ('99999999-1b1b-4000-8000-000000000002', 'bbbbbbbb-1b1b-4000-8000-000000000001', 'OPEN', repeat('m', 32), now(), now() + interval '10 days')$$, '23503', 'appeal signal must belong to same network subject');
 select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, status, request_reference_hash, opened_at, review_due_at, resolved_at) values ('99999999-1b1b-4000-8000-000000000001', 'UPHELD', repeat('a', 32), now(), now() + interval '10 days', now())$$, '23514', 'resolved appeal requires resolution code and resolver');
 select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, status, request_reference_hash, opened_at, review_due_at) values ('99999999-1b1b-4000-8000-000000000001', 'DENIED', repeat('z', 32), now(), now() + interval '10 days')$$, '23514', 'old appeal status rejected');
 
