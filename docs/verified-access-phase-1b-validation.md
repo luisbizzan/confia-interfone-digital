@@ -8,7 +8,8 @@ Data: 2026-07-16
 - Base esperada: `origin/main` em `84077aa18731f83d6e8cfa505b7d10dec2b89026`.
 - Commit documental inicial: `0eba533d8e41007ca0e6f300edc316248d0c1c95`.
 - Draft PR: `https://github.com/luisbizzan/confia-interfone-digital/pull/3`.
-- SHA final validado: `257ec84b23b95a995aaffb335fedd85401599bab`.
+- SHA final validado antes do Gate 1B-REVIEW: `2c5e418d8b9daa0e1d99ce3573c3a6f743e11ff6`.
+- SHA final do Gate 1B-REVIEW: pendente de CI.
 
 ## Escopo Implementado
 
@@ -24,6 +25,8 @@ Data: 2026-07-16
 - Workflow GitHub Actions da Fase 1B.
 - Compatibilidade do pgTAP/workflow da Fase 1A para executar em branches que
   tambem contenham a Fase 1B.
+- Gate 1B-REVIEW alinhando taxonomias, FK composta entre signal/case/subject e
+  trigger de validacao de case substanciado.
 
 ## Migrations da Fase 1B
 
@@ -51,8 +54,26 @@ remota deve ser executada nesta fase.
 - Sinais nao permitem `AUTO_DENY_NETWORK`, `GLOBAL_DENIED` ou
   `PERMANENT_BLACKLIST`.
 - Nenhuma funcao SQL HMAC foi criada.
-- Nenhum trigger operacional, view, RPC ou policy RLS foi criado.
+- Nenhum trigger operacional de propagacao, view, RPC ou policy RLS foi criado.
+- O unico trigger da Fase 1B valida que `network_signals.source_case_id`
+  pertence ao mesmo subject e esta `SUBSTANTIATED`.
 - `service_role` nao recebeu privilegio direto nas tabelas centrais.
+
+## Gate 1B-REVIEW
+
+| Finding | Status local | Evidencia |
+|---|---|---|
+| 1B-PM-01 identifiers | Corrigido | `CPF`, `RNM`, `PASSPORT_WITH_ISSUER` somente |
+| 1B-PM-02 subject status | Corrigido | `ACTIVE`, `UNDER_REVIEW`, `DISPUTED`, `MERGED`, `RETIRED` |
+| 1B-PM-03 case source types | Corrigido | lista canonica e regra local/nula por source |
+| 1B-PM-04 case status | Corrigido | `REPORTED`, `TRIAGE`, `UNDER_REVIEW`, `SUBSTANTIATED`, `DISMISSED`, `CLOSED`, `EXPIRED` |
+| 1B-PM-05 opening categories | Corrigido | categorias suspeitas canonicas somente |
+| 1B-PM-06 signal/source subject | Corrigido | FK composta `(source_case_id, network_subject_id)` |
+| 1B-PM-07 signal categories | Corrigido | categorias confirmadas canonicas somente |
+| 1B-PM-08 signal effects | Corrigido | efeitos canonicos somente |
+| 1B-PM-09 signal status | Corrigido | `DRAFT`, `UNDER_REVIEW`, `ACTIVE`, `SUSPENDED`, `REVOKED`, `EXPIRED`, `REJECTED` |
+| 1B-PM-10 substantiated case | Corrigido | trigger `verified_access_network_signals_validate_source_case` |
+| 1B-PM-11 PR body | Pendente | atualizar PR apos CI verde ou registrar bloqueio de permissao |
 
 ## Validacoes
 
