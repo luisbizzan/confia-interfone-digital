@@ -124,11 +124,44 @@ insert into public.verified_access_network_subjects (
   first_verified_at,
   last_verified_at,
   revalidation_due_at,
-  retention_expires_at
+  retention_until
 )
 values
   ('99999999-1b1b-4000-8000-000000000001', 'ACTIVE', 'IDENTITY_VERIFIED', now(), now(), now() + interval '90 days', now() + interval '365 days'),
-  ('99999999-1b1b-4000-8000-000000000002', 'ACTIVE', 'IDENTITY_VERIFIED', now(), now(), now() + interval '90 days', now() + interval '365 days');
+  ('99999999-1b1b-4000-8000-000000000002', 'UNDER_REVIEW', 'IDENTITY_VERIFIED', now(), now(), now() + interval '90 days', now() + interval '365 days'),
+  ('99999999-1b1b-4000-8000-000000000003', 'DISPUTED', 'IDENTITY_VERIFIED', now(), now(), now() + interval '90 days', now() + interval '365 days');
+
+insert into public.verified_access_network_subjects (
+  id,
+  status,
+  identity_assurance_level,
+  first_verified_at,
+  last_verified_at,
+  merged_into_subject_id
+)
+values (
+  '99999999-1b1b-4000-8000-000000000004',
+  'MERGED',
+  'IDENTITY_VERIFIED',
+  now(),
+  now(),
+  '99999999-1b1b-4000-8000-000000000001'
+);
+
+insert into public.verified_access_network_subjects (
+  id,
+  status,
+  identity_assurance_level,
+  first_verified_at,
+  last_verified_at
+)
+values (
+  '99999999-1b1b-4000-8000-000000000005',
+  'RETIRED',
+  'IDENTITY_VERIFIED',
+  now(),
+  now()
+);
 
 create or replace function pg_temp.expect_error(p_sql text, p_expected_sqlstate text, p_label text)
 returns void
@@ -146,6 +179,9 @@ exception
 end;
 $$;
 
+select pg_temp.expect_error($$insert into public.verified_access_network_subjects (status, identity_assurance_level, first_verified_at, last_verified_at) values ('REVALIDATION_REQUIRED', 'IDENTITY_VERIFIED', now(), now())$$, '23514', 'old subject status rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subjects (id, status, identity_assurance_level, first_verified_at, last_verified_at, merged_into_subject_id) values ('99999999-1b1b-4000-8000-000000000099', 'MERGED', 'IDENTITY_VERIFIED', now(), now(), '99999999-1b1b-4000-8000-000000000099')$$, '23514', 'self merge rejected');
+
 insert into public.verified_access_network_subject_identifiers (
   network_subject_id,
   identifier_type,
@@ -156,27 +192,27 @@ insert into public.verified_access_network_subject_identifiers (
   is_primary,
   verified_at
 )
-values (
-  '99999999-1b1b-4000-8000-000000000001',
-  'CPF',
-  repeat('n', 32),
-  1,
-  1,
-  'ACTIVE',
-  true,
-  now()
-);
+values
+  ('99999999-1b1b-4000-8000-000000000001', 'CPF', repeat('a', 32), 1, 1, 'ACTIVE', true, now()),
+  ('99999999-1b1b-4000-8000-000000000001', 'RNM', repeat('b', 32), 1, 1, 'ACTIVE', true, now()),
+  ('99999999-1b1b-4000-8000-000000000001', 'PASSPORT_WITH_ISSUER', repeat('c', 32), 1, 1, 'ACTIVE', true, now());
 
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000002', 'CPF', repeat('n', 32), 1, 1, now())$$, '23505', 'duplicate active network HMAC rejected');
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'PHONE', repeat('p', 32), 1, 1, now())$$, '23514', 'phone is not a network identifier');
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'FACE_TEMPLATE', repeat('f', 32), 1, 1, now())$$, '23514', 'face biometric is not a network identifier');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000002', 'CPF', repeat('a', 32), 1, 1, now())$$, '23505', 'duplicate active network HMAC rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'PASSPORT', repeat('p', 32), 1, 1, now())$$, '23514', 'plain passport rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'GOVERNMENT_ID', repeat('g', 32), 1, 1, now())$$, '23514', 'government id rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'PROVIDER_DOCUMENT', repeat('d', 32), 1, 1, now())$$, '23514', 'provider document rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'PHONE', repeat('h', 32), 1, 1, now())$$, '23514', 'phone rejected as network identifier');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'EMAIL', repeat('e', 32), 1, 1, now())$$, '23514', 'email rejected as network identifier');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'NAME', repeat('m', 32), 1, 1, now())$$, '23514', 'name rejected as network identifier');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'FACE', repeat('f', 32), 1, 1, now())$$, '23514', 'face rejected as network identifier');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_identifiers (network_subject_id, identifier_type, identifier_hmac, hmac_key_version, canonicalization_version, verified_at) values ('99999999-1b1b-4000-8000-000000000001', 'BIOMETRIC', repeat('i', 32), 1, 1, now())$$, '23514', 'biometric rejected as network identifier');
 
 insert into public.verified_access_network_subject_links (
   network_subject_id,
   condominium_id,
   identity_profile_id,
-  assurance_level,
-  link_reason_code
+  identity_assurance_level,
+  link_reason
 )
 values (
   '99999999-1b1b-4000-8000-000000000001',
@@ -186,19 +222,19 @@ values (
   'VERIFIED_IDENTIFIER_MATCH'
 );
 
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, assurance_level, link_reason_code) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000002', 'IDENTITY_VERIFIED', 'CROSS_TENANT_LINK')$$, '23503', 'cross-tenant local profile link rejected');
-select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, assurance_level, link_reason_code) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'IDENTITY_VERIFIED', 'DUPLICATE_ACTIVE_PROFILE_LINK')$$, '23505', 'local identity profile has one active network link');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000002', 'IDENTITY_VERIFIED', 'CROSS_TENANT_LINK')$$, '23503', 'cross-tenant local profile link rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_subject_links (network_subject_id, condominium_id, identity_profile_id, identity_assurance_level, link_reason) values ('99999999-1b1b-4000-8000-000000000002', '11111111-1b1b-4000-8000-000000000001', '77777777-1b1b-4000-8000-000000000001', 'IDENTITY_VERIFIED', 'DUPLICATE_ACTIVE_PROFILE_LINK')$$, '23505', 'local identity profile has one active network link');
 
 do $$
 begin
   if exists (
     select 1
-    from public.verified_access_network_signals s
-    join public.verified_access_participants p
-      on p.identity_profile_id = '77777777-1b1b-4000-8000-000000000001'
-    where p.local_decision_reason_code = 'LOCAL_DENIED'
+    from public.verified_access_network_security_cases
+  ) or exists (
+    select 1
+    from public.verified_access_network_signals
   ) then
-    raise exception 'LOCAL_DENIED created a network signal';
+    raise exception 'LOCAL_DENIED created a central case or signal';
   end if;
 end $$;
 
@@ -213,6 +249,8 @@ insert into public.verified_access_network_security_cases (
   severity,
   evidence_assurance_level,
   summary_code,
+  reported_by_actor_type,
+  reported_by_actor_id,
   evidence_reference_hash,
   metadata_sanitized
 )
@@ -222,17 +260,49 @@ values (
   'CONDOMINIUM_REPORT',
   '11111111-1b1b-4000-8000-000000000001',
   '88888888-1b1b-4000-8000-000000000001',
-  'OPEN',
-  'SECURITY_REVIEW',
+  'REPORTED',
+  'IDENTITY_IMPERSONATION_SUSPECTED',
   'MEDIUM',
   'MANUAL_VERIFIED',
   'LOCAL_INCIDENT_REVIEW',
+  'CONDOMINIUM_OPERATOR',
+  'operator-1',
   repeat('e', 32),
   '{"reason_code":"LOCAL_INCIDENT_REVIEW"}'::jsonb
 );
 
-select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, evidence_reference_hash, metadata_sanitized) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000002', '88888888-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'MEDIUM', 'MANUAL_VERIFIED', 'CROSS_TENANT_CASE', repeat('x', 32), '{"reason_code":"CROSS_TENANT_CASE"}'::jsonb)$$, '23503', 'cross-tenant case participant rejected');
-select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, evidence_reference_hash, metadata_sanitized) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'MEDIUM', 'MANUAL_VERIFIED', 'BAD_METADATA', repeat('y', 32), '{"cpf":"123"}'::jsonb)$$, '23514', 'central case metadata rejects civil PII aliases');
+insert into public.verified_access_network_security_cases (
+  id,
+  network_subject_id,
+  source_type,
+  status,
+  category,
+  severity,
+  evidence_assurance_level,
+  summary_code,
+  reported_by_actor_type,
+  reported_by_actor_id,
+  triaged_by_actor_id,
+  triaged_at,
+  dismissed_at,
+  expired_at,
+  evidence_reference_hash,
+  metadata_sanitized
+)
+values
+  ('aaaaaaaa-1b1b-4000-8000-000000000002', '99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'TRIAGE', 'PLATFORM_SECURITY_INCIDENT', 'HIGH', 'PLATFORM_EVIDENCE', 'PLATFORM_TRIAGE', 'PLATFORM_OPERATOR', 'platform-1', 'triage-1', now(), null, null, repeat('f', 32), '{"reason_code":"PLATFORM_TRIAGE"}'::jsonb),
+  ('aaaaaaaa-1b1b-4000-8000-000000000003', '99999999-1b1b-4000-8000-000000000001', 'IDENTITY_PROVIDER', 'UNDER_REVIEW', 'DOCUMENT_FRAUD_SUSPECTED', 'HIGH', 'PROVIDER_ASSERTED', 'IDENTITY_REVIEW', 'IDENTITY_PROVIDER', 'identity-provider', 'triage-1', now(), null, null, repeat('g', 32), '{"reason_code":"IDENTITY_REVIEW"}'::jsonb),
+  ('aaaaaaaa-1b1b-4000-8000-000000000004', '99999999-1b1b-4000-8000-000000000001', 'BACKGROUND_PROVIDER', 'DISMISSED', 'OFFICIAL_SOURCE_REVALIDATION_REQUIRED', 'LOW', 'PROVIDER_ASSERTED', 'BACKGROUND_DISMISSED', 'BACKGROUND_PROVIDER', 'background-provider', null, null, now(), null, repeat('h', 32), '{"reason_code":"BACKGROUND_DISMISSED"}'::jsonb),
+  ('aaaaaaaa-1b1b-4000-8000-000000000005', '99999999-1b1b-4000-8000-000000000001', 'PRIVACY_CORRECTION', 'EXPIRED', 'REPEATED_IDENTITY_MANIPULATION_SUSPECTED', 'LOW', 'MANUAL_VERIFIED', 'PRIVACY_EXPIRED', 'PRIVACY_OFFICER', 'privacy-1', null, null, null, now(), repeat('i', 32), '{"reason_code":"PRIVACY_EXPIRED"}'::jsonb);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', null, null, 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'MISSING_LOCAL_SOURCE', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, '23514', 'condominium report requires condominium and participant');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', '11111111-1b1b-4000-8000-000000000001', '88888888-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY_INCIDENT', 'HIGH', 'PLATFORM_EVIDENCE', 'PLATFORM_WITH_LOCAL_SOURCE', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'non-condominium report rejects local participant');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, source_condominium_id, source_participant_id, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'CONDOMINIUM_REPORT', '11111111-1b1b-4000-8000-000000000002', '88888888-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'CROSS_TENANT_CASE', 'CONDOMINIUM_OPERATOR', 'operator-1')$$, '23503', 'cross-tenant case participant rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PROVIDER_ATTESTATION', 'IDENTITY_IMPERSONATION_SUSPECTED', 'MEDIUM', 'MANUAL_VERIFIED', 'OLD_SOURCE', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'old source type rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, status, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'OPEN', 'PLATFORM_SECURITY_INCIDENT', 'MEDIUM', 'PLATFORM_EVIDENCE', 'OLD_STATUS', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'old case status rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'POLICY_VIOLATION', 'MEDIUM', 'PLATFORM_EVIDENCE', 'POLICY_VIOLATION', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'policy violation rejected as network case category');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'LOCAL_DENIED', 'MEDIUM', 'PLATFORM_EVIDENCE', 'LOCAL_DENIED', 'PLATFORM_OPERATOR', 'platform-1')$$, '23514', 'local denied rejected as network case category');
+select pg_temp.expect_error($$insert into public.verified_access_network_security_cases (network_subject_id, source_type, category, severity, evidence_assurance_level, summary_code, reported_by_actor_type, reported_by_actor_id, metadata_sanitized) values ('99999999-1b1b-4000-8000-000000000001', 'PLATFORM_SECURITY', 'PLATFORM_SECURITY_INCIDENT', 'MEDIUM', 'PLATFORM_EVIDENCE', 'BAD_METADATA', 'PLATFORM_OPERATOR', 'platform-1', '{"cpf":"123"}'::jsonb)$$, '23514', 'central case metadata rejects civil PII aliases');
 
 do $$
 begin
@@ -241,7 +311,7 @@ begin
     from public.verified_access_network_signals
     where network_subject_id = '99999999-1b1b-4000-8000-000000000001'
   ) then
-    raise exception 'OPEN security case created a network signal';
+    raise exception 'reported or under-review cases created a network signal';
   end if;
 
   if exists (
@@ -250,62 +320,95 @@ begin
     where condominium_id = '11111111-1b1b-4000-8000-000000000002'
       and network_status <> 'NOT_ENABLED'
   ) then
-    raise exception 'OPEN case affected another condominium';
+    raise exception 'case affected another condominium';
   end if;
 end $$;
 
 update public.verified_access_network_security_cases
 set status = 'SUBSTANTIATED',
-    triaged_at = now(),
+    triaged_at = coalesce(triaged_at, now()),
+    triaged_by_actor_id = coalesce(triaged_by_actor_id, 'triage-1'),
     substantiated_at = now()
 where id = 'aaaaaaaa-1b1b-4000-8000-000000000001';
 
-select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, effect, severity, reason_code, policy_version, valid_from, expires_at) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'AUTO_DENY_NETWORK', 'HIGH', 'AUTO_DENY_NETWORK', 1, now(), now() + interval '30 days')$$, '23514', 'AUTO_DENY_NETWORK is not a valid network effect');
-select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, effect, severity, reason_code, policy_version, valid_from, expires_at) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'PERMANENT_BLACKLIST', 'HIGH', 'PERMANENT_BLACKLIST', 1, now(), now() + interval '30 days')$$, '23514', 'PERMANENT_BLACKLIST is not a valid network effect');
-select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, effect, severity, reason_code, policy_version, valid_from, expires_at, status) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'MANUAL_REVIEW_REQUIRED', 'HIGH', 'BAD_WINDOW', 1, now(), now() - interval '1 day', 'PROPOSED')$$, '23514', 'network signal expiration must be after valid_from');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000002', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_CONFIRMED', 'HIGH', 'REQUIRE_MANUAL_REVIEW', 'DRAFT', 1, 'SUBJECT_MISMATCH', now(), now() + interval '30 days', now() + interval '15 days', 'SYSTEM', 'system')$$, '23503', 'signal subject must match source case subject');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000002', 'PLATFORM_SECURITY_SUSPENSION', 'HIGH', 'INFORM_AUTHORIZED_REVIEWER', 'DRAFT', 1, 'UNSUBSTANTIATED_SOURCE', now(), now() + interval '30 days', now() + interval '15 days', 'SYSTEM', 'system')$$, 'P0001', 'signal requires substantiated source case');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'SECURITY_REVIEW', 'HIGH', 'REQUIRE_MANUAL_REVIEW', 'DRAFT', 1, 'OLD_CATEGORY', now(), now() + interval '30 days', now() + interval '15 days', 'SYSTEM', 'system')$$, '23514', 'old signal category rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_CONFIRMED', 'HIGH', 'AUTO_DENY_NETWORK', 'DRAFT', 1, 'AUTO_DENY_NETWORK', now(), now() + interval '30 days', now() + interval '15 days', 'SYSTEM', 'system')$$, '23514', 'AUTO_DENY_NETWORK rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_CONFIRMED', 'HIGH', 'MANUAL_REVIEW_REQUIRED', 'DRAFT', 1, 'OLD_EFFECT', now(), now() + interval '30 days', now() + interval '15 days', 'SYSTEM', 'system')$$, '23514', 'old signal effect rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_CONFIRMED', 'HIGH', 'REQUIRE_MANUAL_REVIEW', 'PROPOSED', 1, 'OLD_STATUS', now(), now() + interval '30 days', now() + interval '15 days', 'SYSTEM', 'system')$$, '23514', 'old signal status rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_signals (network_subject_id, source_case_id, category, severity, effect, status, policy_version, reason_code, valid_from, expires_at, review_due_at, proposed_by_actor_type, proposed_by_actor_id) values ('99999999-1b1b-4000-8000-000000000001', 'aaaaaaaa-1b1b-4000-8000-000000000001', 'IDENTITY_IMPERSONATION_CONFIRMED', 'HIGH', 'REQUIRE_MANUAL_REVIEW', 'DRAFT', 1, 'BAD_WINDOW', now(), now() - interval '1 day', now() + interval '15 days', 'SYSTEM', 'system')$$, '23514', 'network signal expiration must be after valid_from');
 
 insert into public.verified_access_network_signals (
   id,
   network_subject_id,
   source_case_id,
   category,
+  severity,
   effect,
   status,
-  severity,
-  reason_code,
   policy_version,
+  reason_code,
   valid_from,
   expires_at,
   review_due_at,
-  activated_at
+  proposed_by_actor_type,
+  proposed_by_actor_id
 )
 values (
   'bbbbbbbb-1b1b-4000-8000-000000000001',
   '99999999-1b1b-4000-8000-000000000001',
   'aaaaaaaa-1b1b-4000-8000-000000000001',
-  'SECURITY_REVIEW',
-  'MANUAL_REVIEW_REQUIRED',
-  'ACTIVE',
+  'IDENTITY_IMPERSONATION_CONFIRMED',
   'HIGH',
-  'SUBSTANTIATED_REVIEW',
+  'REQUIRE_MANUAL_REVIEW',
+  'DRAFT',
   1,
+  'SUBSTANTIATED_REVIEW',
   now() + interval '1 hour',
   now() + interval '30 days',
   now() + interval '15 days',
-  now()
+  'SYSTEM',
+  'system'
+);
+
+insert into public.verified_access_network_signals (
+  network_subject_id,
+  source_case_id,
+  category,
+  severity,
+  effect,
+  status,
+  policy_version,
+  reason_code,
+  valid_from,
+  expires_at,
+  review_due_at,
+  proposed_by_actor_type,
+  proposed_by_actor_id,
+  activated_at,
+  activated_by_actor_id
+)
+values (
+  '99999999-1b1b-4000-8000-000000000001',
+  'aaaaaaaa-1b1b-4000-8000-000000000001',
+  'DOCUMENT_FRAUD_CONFIRMED',
+  'HIGH',
+  'HOLD_CREDENTIAL',
+  'ACTIVE',
+  1,
+  'ACTIVE_REVIEW',
+  now() + interval '1 hour',
+  now() + interval '30 days',
+  now() + interval '15 days',
+  'SYSTEM',
+  'system',
+  now(),
+  'reviewer-activation'
 );
 
 do $$
 begin
-  if exists (
-    select 1
-    from public.verified_access_network_signals
-    where status = 'ACTIVE'
-      and expires_at <= now()
-  ) then
-    raise exception 'expired active signal can become actionable';
-  end if;
-
   if exists (
     select 1
     from public.verified_access_participants
@@ -318,20 +421,21 @@ end $$;
 
 insert into public.verified_access_network_signal_reviews (
   signal_id,
+  reviewer_actor_id,
   reviewer_role,
   decision,
-  decision_reason_code,
-  reviewer_actor_id
+  reason_code
 )
 values (
   'bbbbbbbb-1b1b-4000-8000-000000000001',
+  'reviewer-1',
   'SECURITY_REVIEWER',
-  'APPROVE_ACTIVATION',
-  'REVIEW_APPROVED',
-  'reviewer-1'
+  'APPROVE',
+  'REVIEW_APPROVED'
 );
 
-select pg_temp.expect_error($$insert into public.verified_access_network_signal_reviews (signal_id, reviewer_role, decision, decision_reason_code) values ('bbbbbbbb-1b1b-4000-8000-000000000001', 'SECURITY_REVIEWER', 'APPROVE_ACTIVATION', 'REVIEW_DUPLICATE')$$, '23505', 'duplicate signal review decision rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_signal_reviews (signal_id, reviewer_actor_id, reviewer_role, decision, reason_code) values ('bbbbbbbb-1b1b-4000-8000-000000000001', 'reviewer-1', 'SECURITY_REVIEWER', 'REQUEST_CHANGES', 'REVIEW_DUPLICATE')$$, '23505', 'duplicate signal reviewer rejected');
+select pg_temp.expect_error($$insert into public.verified_access_network_signal_reviews (signal_id, reviewer_actor_id, reviewer_role, decision, reason_code) values ('bbbbbbbb-1b1b-4000-8000-000000000001', 'reviewer-2', 'SECURITY_REVIEWER', 'APPROVE_ACTIVATION', 'OLD_DECISION')$$, '23514', 'old review decision rejected');
 
 insert into public.verified_access_network_appeals (
   network_subject_id,
@@ -350,6 +454,30 @@ values (
   now() + interval '10 days'
 );
 
-select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, status, request_reference_hash, opened_at, review_due_at, resolved_at) values ('99999999-1b1b-4000-8000-000000000001', 'APPROVED', repeat('a', 32), now(), now() + interval '10 days', now())$$, '23514', 'resolved appeal requires resolution code');
+insert into public.verified_access_network_appeals (
+  network_subject_id,
+  signal_id,
+  status,
+  request_reference_hash,
+  opened_at,
+  review_due_at,
+  resolution_code,
+  resolved_by_actor_id,
+  resolved_at
+)
+values (
+  '99999999-1b1b-4000-8000-000000000001',
+  'bbbbbbbb-1b1b-4000-8000-000000000001',
+  'UPHELD',
+  repeat('s', 32),
+  now(),
+  now() + interval '10 days',
+  'APPEAL_UPHELD',
+  'reviewer-appeal',
+  now()
+);
+
+select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, status, request_reference_hash, opened_at, review_due_at, resolved_at) values ('99999999-1b1b-4000-8000-000000000001', 'UPHELD', repeat('a', 32), now(), now() + interval '10 days', now())$$, '23514', 'resolved appeal requires resolution code and resolver');
+select pg_temp.expect_error($$insert into public.verified_access_network_appeals (network_subject_id, status, request_reference_hash, opened_at, review_due_at) values ('99999999-1b1b-4000-8000-000000000001', 'DENIED', repeat('z', 32), now(), now() + interval '10 days')$$, '23514', 'old appeal status rejected');
 
 commit;

@@ -10,28 +10,66 @@ select has_table('public', 'verified_access_network_signals', 'network signals t
 select has_table('public', 'verified_access_network_signal_reviews', 'network signal reviews table exists');
 select has_table('public', 'verified_access_network_appeals', 'network appeals table exists');
 
-select has_column('public', 'verified_access_network_subjects', 'identity_assurance_level', 'subjects have identity assurance');
+select has_column('public', 'verified_access_network_subjects', 'retention_until', 'subjects use canonical retention_until');
 select has_column('public', 'verified_access_network_subject_identifiers', 'identifier_hmac', 'identifiers store HMAC only');
-select has_column('public', 'verified_access_network_subject_links', 'identity_profile_id', 'links target local identity profiles');
-select has_column('public', 'verified_access_network_security_cases', 'metadata_sanitized', 'cases store sanitized metadata');
-select has_column('public', 'verified_access_network_signals', 'effect', 'signals have explicit effect');
-select has_column('public', 'verified_access_network_signal_reviews', 'decision', 'reviews store decisions');
-select has_column('public', 'verified_access_network_appeals', 'request_reference_hash', 'appeals store hashed request reference');
+select has_column('public', 'verified_access_network_subject_links', 'link_reason', 'links use canonical link_reason');
+select has_column('public', 'verified_access_network_subject_links', 'identity_assurance_level', 'links use canonical identity_assurance_level');
+select has_column('public', 'verified_access_network_security_cases', 'reported_by_actor_type', 'cases store reporter actor type');
+select has_column('public', 'verified_access_network_security_cases', 'reported_at', 'cases store reported_at');
+select has_column('public', 'verified_access_network_security_cases', 'expired_at', 'cases store expired_at');
+select has_column('public', 'verified_access_network_signals', 'proposed_by_actor_type', 'signals store proposer actor type');
+select has_column('public', 'verified_access_network_signals', 'rejected_at', 'signals store rejected_at');
+select has_column('public', 'verified_access_network_signals', 'expired_at', 'signals store expired_at');
+select has_column('public', 'verified_access_network_signal_reviews', 'reviewer_actor_id', 'reviews require reviewer actor');
+select has_column('public', 'verified_access_network_signal_reviews', 'reason_code', 'reviews use canonical reason_code');
+select has_column('public', 'verified_access_network_appeals', 'resolved_by_actor_id', 'appeals store resolver actor');
 
 select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_identifiers_type_check'), 'identifier type check exists');
-select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_links_profile_tenant_fk'), 'profile tenant FK exists');
-select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_cases_source_participant_fk'), 'case source participant tenant FK exists');
-select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_cases_metadata_sanitized_check'), 'case sanitized metadata check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_subjects_status_check'), 'subject status check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_cases_source_type_check'), 'case source type check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_cases_status_check'), 'case status check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_cases_category_check'), 'case category check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_signals_case_subject_fk'), 'signal case/subject composite FK exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_signals_category_check'), 'signal category check exists');
 select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_signals_effect_check'), 'signal effect check exists');
-select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_signals_window_check'), 'signal validity window check exists');
-select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_appeals_resolution_check'), 'appeal resolution check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_signals_status_check'), 'signal status check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_reviews_decision_check'), 'review decision check exists');
+select ok(exists (select 1 from pg_constraint where conname = 'verified_access_network_appeals_status_check'), 'appeal status check exists');
 
+select ok(to_regclass('public.ux_verified_access_network_cases_id_subject') is not null, 'case id/subject unique index exists');
 select ok(to_regclass('public.ux_verified_access_network_identifiers_active_hmac') is not null, 'active identifier HMAC unique index exists');
 select ok(to_regclass('public.ux_verified_access_network_identifiers_primary_active') is not null, 'primary active identifier unique index exists');
 select ok(to_regclass('public.ux_verified_access_network_links_active_profile') is not null, 'active profile link unique index exists');
+select ok(to_regclass('public.ux_verified_access_network_reviews_signal_actor') is not null, 'review unique signal/actor index exists');
 select ok(to_regclass('public.idx_verified_access_network_signals_active_actionable') is not null, 'active actionable signal index exists');
-select ok(to_regclass('public.idx_verified_access_network_cases_source_condominium') is not null, 'source condominium case index exists');
-select ok(to_regclass('public.idx_verified_access_network_appeals_review_due') is not null, 'appeal due index exists');
+
+select ok(
+  to_regprocedure('public.verified_access_network_validate_signal_source_case()') is not null,
+  'signal source case validation trigger function exists'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_trigger t
+    join pg_class c on c.oid = t.tgrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'verified_access_network_signals'
+      and t.tgname = 'verified_access_network_signals_validate_source_case'
+      and not t.tgisinternal
+  ),
+  'signal source case validation trigger exists'
+);
+
+select is_empty(
+  $$select 1
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname like 'verified_access%hmac%'$$,
+  'no verified access SQL HMAC helper exists'
+);
 
 select ok(
   (select bool_and(c.relrowsecurity)
@@ -67,12 +105,7 @@ select ok(
 )
 from (
   select *
-  from (
-    values
-      ('anon'),
-      ('authenticated'),
-      ('service_role')
-  ) as roles(role_name)
+  from (values ('anon'), ('authenticated'), ('service_role')) as roles(role_name)
   cross join (
     values
       ('verified_access_network_subjects'),
@@ -83,43 +116,16 @@ from (
       ('verified_access_network_signal_reviews'),
       ('verified_access_network_appeals')
   ) as tables(table_name)
-  cross join (
-    values
-      ('SELECT'),
-      ('INSERT'),
-      ('UPDATE'),
-      ('DELETE'),
-      ('TRUNCATE')
-  ) as privileges(privilege_name)
+  cross join (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE'), ('TRUNCATE')) as privileges(privilege_name)
 ) matrix;
 
 select is_empty(
   $$select 1
-    from information_schema.role_table_grants
-    where table_schema = 'public'
-      and table_name like 'verified_access_network_%'
+    from information_schema.role_routine_grants
+    where specific_schema = 'public'
+      and routine_name = 'verified_access_network_validate_signal_source_case'
       and grantee in ('anon', 'authenticated', 'service_role', 'PUBLIC')$$,
-  'no direct central network grants for runtime roles'
-);
-
-select is_empty(
-  $$select 1
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname like 'verified_access_network_%'$$,
-  'no central network SQL functions were created'
-);
-
-select is_empty(
-  $$select 1
-    from pg_trigger t
-    join pg_class c on c.oid = t.tgrelid
-    join pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = 'public'
-      and c.relname like 'verified_access_network_%'
-      and not t.tgisinternal$$,
-  'no central network triggers were created'
+  'no runtime execute grants on signal source validation function'
 );
 
 select is_empty(
@@ -169,7 +175,6 @@ select is_empty(
 
 select ok(to_regclass('public.verified_access_network_subject_operational_cases') is null, 'no operational subject case table exists');
 select ok(to_regclass('public.verified_access_network_subject_search') is null, 'no network search table exists');
-select ok(to_regprocedure('public.verified_access_network_hmac(text)') is null, 'no SQL HMAC helper exists');
 
 select * from finish();
 
