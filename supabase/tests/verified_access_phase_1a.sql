@@ -14,8 +14,31 @@ select has_table('public', 'verified_access_eligibility_evaluations', 'eligibili
 select has_table('public', 'verified_access_outbox_events', 'outbox table exists');
 select has_table('public', 'verified_access_audit_events', 'audit table exists');
 
-select ok(to_regclass('public.verified_access_network_subjects') is null, 'no central network subjects table in phase 1A');
-select ok(to_regclass('public.verified_access_network_signals') is null, 'no central network signals table in phase 1A');
+select ok(
+  to_regclass('public.verified_access_network_subjects') is null
+  or exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'verified_access_network_subjects'
+      and c.relrowsecurity
+  ),
+  'central network subjects are absent before phase 1B or protected by RLS after phase 1B'
+);
+
+select ok(
+  to_regclass('public.verified_access_network_signals') is null
+  or exists (
+    select 1
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname = 'verified_access_network_signals'
+      and c.relrowsecurity
+  ),
+  'central network signals are absent before phase 1B or protected by RLS after phase 1B'
+);
 
 select has_column('public', 'verified_access_policies', 'visitor_identity_mode', 'policy separates visitor identity mode');
 select has_column('public', 'verified_access_policies', 'service_identity_mode', 'policy separates service identity mode');
