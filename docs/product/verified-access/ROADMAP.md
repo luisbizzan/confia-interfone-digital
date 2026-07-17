@@ -6,7 +6,7 @@ Atualizado em 16 de julho de 2026.
 |---|---|---|
 | Fase 0 — descoberta | Concluída | stack, tenant e módulos mapeados |
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
-| Fase 1B — fundação inerte da Rede Confia | Implementada / aguardando merge | draft PR `#3`, branch `agent/verified-access-phase-1b` |
+| Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Não autorizada | depende do merge da 1B e de novo contrato versionado |
 | Fase 1D — contratos e providers fake | Não iniciada | depende das portas aprovadas |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
@@ -37,7 +37,8 @@ As migrations ainda não foram aplicadas remotamente.
 
 ## Fase 1B atual
 
-Implementada nesta branch, em revisão e aguardando merge, de forma inerte:
+Mergeada na `main` pelo squash commit
+`957b01351f412ad75e353e99643cbe99446f9bff`, de forma inerte:
 
 - network subjects;
 - identifiers;

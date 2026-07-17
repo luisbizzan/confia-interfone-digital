@@ -2,10 +2,11 @@
 
 ## Estado
 
-Fase 1B concluída nesta branch e em revisão no draft PR:
+Fase 1B concluída e mergeada na `main`:
 
 ```text
-https://github.com/luisbizzan/confia-interfone-digital/pull/3
+PR: https://github.com/luisbizzan/confia-interfone-digital/pull/3
+Squash: 957b01351f412ad75e353e99643cbe99446f9bff
 ```
 
 Não reexecutar a Fase 1B a partir deste arquivo.

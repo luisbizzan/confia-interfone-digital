@@ -30,7 +30,8 @@ DECISIONS.md
 - Fase 0 — descoberta: concluída.
 - Fase 1A — fundação local: mergeada na `main`.
 - Commit da Fase 1A: `84077aa18731f83d6e8cfa505b7d10dec2b89026`.
-- Fase 1B — fundação inerte da Rede Confia: implementada nesta branch, em revisão, ainda não mergeada.
+- Fase 1B — fundação inerte da Rede Confia: mergeada na `main`.
+- Commit da Fase 1B: `957b01351f412ad75e353e99643cbe99446f9bff`.
 - Nenhuma migration do Acesso Verificado foi aplicada ao Supabase remoto.
 - Todas as features permanecem desligadas.
 - O deploy Vercel do merge é independente das migrations Supabase.
