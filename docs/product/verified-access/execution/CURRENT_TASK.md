@@ -29,10 +29,10 @@ A Fase 1B implementou a fundação inerte da Rede Confia:
 
 A Fase 1C não está autorizada.
 
+A Fase 1B já foi mergeada. O plano da Fase 1C está em revisão documental.
+
 Aguardar:
 
-- merge da Fase 1B;
-- confirmação pós-merge;
 - novo contrato versionado em `CURRENT_TASK.md`.
 
 ## Restrições Permanecem
