@@ -15,6 +15,7 @@ This document records the Phase 1C execution evidence for state-machine hardenin
 - Tests:
   - `verified_access_phase_1c.sql`
   - `verified_access_phase_1c_integration.psql`
+  - `verified_access_phase_1c_runtime_roles.psql`
 - CI:
   - `verified-access-phase-1c.yml`
 
@@ -48,6 +49,37 @@ The `verified-access-phase-1c.yml` runtime role check was hardened to diagnose t
 - records `pg_isready` and `docker ps -a` after each diagnostic step;
 - captures and sanitizes PostgreSQL container logs on connection loss or unexpected SQLSTATE.
 
+## Supabase Postgres #2112 Workaround
+
+The connection loss was confirmed as the upstream
+[`supabase/postgres#2112`](https://github.com/supabase/postgres/issues/2112)
+regression. On `public.ecr.aws/supabase/postgres:17.6.1.106`, a revoked
+function call made after `SET ROLE anon` terminated the backend with signal 11,
+started PostgreSQL crash recovery, and returned no SQLSTATE to the client.
+Catalog inspection before the crash confirmed that the Phase 1C ACLs were
+correct: `anon`, `authenticated`, and `service_role` had no `EXECUTE` privilege.
+
+The runtime harness now detects the real database container image without
+depending on a container name. For affected `17.6.1.100+` images it records
+`SKIPPED_UPSTREAM_SUPABASE_POSTGRES_2112` and does not deliberately invoke a
+revoked function as a Supabase reserved role. The skip applies only to that
+known crash path. The following compensating checks remain mandatory:
+
+- all five exact function signatures exist without overloads;
+- owner, `prosecdef`, ACL, and fixed `search_path` match the contract;
+- `has_function_privilege(..., 'EXECUTE')` is false for all three runtime roles;
+- simple role switching succeeds for `anon`, `authenticated`, and `service_role`;
+- a non-reserved synthetic role makes real negative calls to the create-policy
+  RPC, activate-policy RPC, and audit helper, each requiring SQLSTATE `42501`;
+- the synthetic role is removed on success and by a workflow trap on failure;
+- PostgreSQL remains ready after the harness.
+
+When the detected image is outside the affected range, the harness also makes
+real negative calls as `anon` and `authenticated` and requires SQLSTATE `42501`.
+The workaround can be removed after an upstream-fixed image is adopted and
+those reserved-role calls pass without a backend restart. No grant was added or
+expanded by this workaround.
+
 ## GitHub Actions Results
 
 Latest pre-diagnostic run:
@@ -61,4 +93,13 @@ Latest pre-diagnostic run:
   - integration SQL: success.
   - runtime role permission checks: failed due connection loss while checking the first `anon` RPC call.
 
-Post-diagnostic CI: pending after the runtime permissions hardening commit.
+Diagnostic run `29651031221` confirmed:
+
+- image: `public.ecr.aws/supabase/postgres:17.6.1.106`;
+- ACL matrix: false for `anon`, `authenticated`, and `service_role`;
+- exact Phase 1C RPC/helper signatures, owner `postgres`, `prosecdef = true`,
+  owner-only ACL, and `search_path = public, pg_temp`;
+- simple role switching: success for all three runtime roles;
+- first explicit call as `anon`: backend SIGSEGV and recovery, matching #2112.
+
+Post-workaround CI: pending.

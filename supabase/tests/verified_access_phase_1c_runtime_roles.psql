@@ -1,0 +1,337 @@
+\set ON_ERROR_STOP on
+\set VERBOSITY verbose
+
+\if :{?upstream_2112_affected}
+\else
+  \set upstream_2112_affected 0
+\endif
+
+\echo 'Verified Access Phase 1C runtime role permission harness'
+
+select version() as postgres_version;
+select extname, extversion
+from pg_extension
+where extname = 'supautils';
+select current_setting('supautils.hint_roles', true) as supautils_hint_roles;
+select current_setting('supautils.reserved_roles', true) as supautils_reserved_roles;
+
+select
+  r.role_name,
+  s.signature,
+  has_function_privilege(r.role_name, s.signature, 'EXECUTE') as has_execute
+from (values ('anon'), ('authenticated'), ('service_role')) as r(role_name)
+cross join (values
+  ('public.verified_access_create_policy_draft(uuid,jsonb,text,uuid,text)'),
+  ('public.verified_access_activate_policy(uuid,uuid,text,text,text)'),
+  ('public.verified_access_retire_policy(uuid,uuid,text,text,text)'),
+  ('public.verified_access_write_audit_event(uuid,text,text,text,uuid,text,text,text,jsonb)'),
+  ('public.verified_access_enqueue_outbox_event(uuid,text,uuid,text,text,jsonb)')
+) as s(signature)
+order by r.role_name, s.signature;
+
+select
+  p.oid::regprocedure as signature,
+  pg_get_userbyid(p.proowner) as owner,
+  p.prosecdef,
+  p.proacl,
+  p.proconfig
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in (
+    'verified_access_create_policy_draft',
+    'verified_access_activate_policy',
+    'verified_access_retire_policy',
+    'verified_access_write_audit_event',
+    'verified_access_enqueue_outbox_event'
+  )
+order by p.oid::regprocedure::text;
+
+do $$
+declare
+  v_role text;
+  v_signature text;
+  v_proc oid;
+  v_name text;
+begin
+  foreach v_signature in array array[
+    'public.verified_access_create_policy_draft(uuid,jsonb,text,uuid,text)',
+    'public.verified_access_activate_policy(uuid,uuid,text,text,text)',
+    'public.verified_access_retire_policy(uuid,uuid,text,text,text)',
+    'public.verified_access_write_audit_event(uuid,text,text,text,uuid,text,text,text,jsonb)',
+    'public.verified_access_enqueue_outbox_event(uuid,text,uuid,text,text,jsonb)'
+  ]
+  loop
+    v_proc := to_regprocedure(v_signature);
+    if v_proc is null then
+      raise exception 'expected function signature is missing: %', v_signature;
+    end if;
+
+    select p.proname
+      into v_name
+    from pg_proc p
+    where p.oid = v_proc;
+
+    if (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname = v_name) <> 1 then
+      raise exception 'unexpected overload count for function %', v_name;
+    end if;
+
+    if not exists (
+      select 1
+      from pg_proc p
+      where p.oid = v_proc
+        and pg_get_userbyid(p.proowner) = 'postgres'
+        and p.prosecdef is true
+        and p.proacl is not null
+        and p.proconfig @> array['search_path=public, pg_temp']::text[]
+    ) then
+      raise exception 'invalid owner/security/search_path/ACL for %', v_signature;
+    end if;
+
+    if exists (
+      select 1
+      from pg_proc p
+      cross join lateral aclexplode(p.proacl) a
+      where p.oid = v_proc
+        and a.privilege_type = 'EXECUTE'
+        and (
+          a.grantee = 0
+          or a.grantee in (
+            select oid from pg_roles
+            where rolname in ('anon', 'authenticated', 'service_role')
+          )
+        )
+    ) then
+      raise exception 'runtime role present in function ACL: %', v_signature;
+    end if;
+
+    foreach v_role in array array['anon', 'authenticated', 'service_role']
+    loop
+      if has_function_privilege(v_role, v_signature, 'EXECUTE') then
+        raise exception 'unexpected EXECUTE privilege: role %, function %', v_role, v_signature;
+      end if;
+    end loop;
+  end loop;
+end $$;
+
+set role anon;
+select current_user, session_user, 1 as role_switch_ok;
+reset role;
+
+set role authenticated;
+select current_user, session_user, 1 as role_switch_ok;
+reset role;
+
+set role service_role;
+select current_user, session_user, 1 as role_switch_ok;
+reset role;
+
+create role verified_access_runtime_denied_test nologin inherit;
+grant verified_access_runtime_denied_test to postgres;
+
+\set ON_ERROR_STOP off
+set role verified_access_runtime_denied_test;
+select public.verified_access_create_policy_draft(
+  '11111111-1c1c-4000-8000-000000000001'::uuid,
+  '{}'::jsonb,
+  'runtime-role-check'::text,
+  null::uuid,
+  null::text
+);
+\set synthetic_create_sqlstate :SQLSTATE
+reset role;
+\set ON_ERROR_STOP on
+select :'synthetic_create_sqlstate' = '42501' as sqlstate_ok \gset
+\if :sqlstate_ok
+  \echo 'SYNTHETIC_ROLE_CREATE_POLICY_SQLSTATE_42501'
+\else
+  \echo 'Synthetic create-policy call did not return SQLSTATE 42501:' :synthetic_create_sqlstate
+  \quit 1
+\endif
+
+\set ON_ERROR_STOP off
+set role verified_access_runtime_denied_test;
+select public.verified_access_activate_policy(
+  '11111111-1c1c-4000-8000-000000000001'::uuid,
+  '44444444-1c1c-4000-8000-000000000001'::uuid,
+  'runtime-role-check'::text,
+  'APPROVAL'::text,
+  null::text
+);
+\set synthetic_activate_sqlstate :SQLSTATE
+reset role;
+\set ON_ERROR_STOP on
+select :'synthetic_activate_sqlstate' = '42501' as sqlstate_ok \gset
+\if :sqlstate_ok
+  \echo 'SYNTHETIC_ROLE_ACTIVATE_POLICY_SQLSTATE_42501'
+\else
+  \echo 'Synthetic activate-policy call did not return SQLSTATE 42501:' :synthetic_activate_sqlstate
+  \quit 1
+\endif
+
+\set ON_ERROR_STOP off
+set role verified_access_runtime_denied_test;
+select public.verified_access_write_audit_event(
+  '11111111-1c1c-4000-8000-000000000001'::uuid,
+  'SERVICE_ROLE'::text,
+  'runtime-role-check'::text,
+  'POLICY'::text,
+  '44444444-1c1c-4000-8000-000000000001'::uuid,
+  'ROLE_CHECK'::text,
+  null::text,
+  null::text,
+  '{}'::jsonb
+);
+\set synthetic_audit_sqlstate :SQLSTATE
+reset role;
+\set ON_ERROR_STOP on
+select :'synthetic_audit_sqlstate' = '42501' as sqlstate_ok \gset
+\if :sqlstate_ok
+  \echo 'SYNTHETIC_ROLE_AUDIT_HELPER_SQLSTATE_42501'
+\else
+  \echo 'Synthetic audit-helper call did not return SQLSTATE 42501:' :synthetic_audit_sqlstate
+  \quit 1
+\endif
+
+reset role;
+revoke verified_access_runtime_denied_test from postgres;
+drop role verified_access_runtime_denied_test;
+
+\if :upstream_2112_affected
+  \echo 'SKIPPED_UPSTREAM_SUPABASE_POSTGRES_2112'
+\else
+  \set ON_ERROR_STOP off
+  set role anon;
+  select public.verified_access_create_policy_draft(
+    '11111111-1c1c-4000-8000-000000000001'::uuid,
+    '{}'::jsonb,
+    'runtime-role-check'::text,
+    null::uuid,
+    null::text
+  );
+  \set anon_create_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'anon_create_sqlstate' = '42501' as sqlstate_ok \gset
+  \if :sqlstate_ok
+    \echo 'ANON_CREATE_POLICY_SQLSTATE_42501'
+  \else
+    \echo 'anon create-policy call did not return SQLSTATE 42501:' :anon_create_sqlstate
+    \quit 1
+  \endif
+
+  \set ON_ERROR_STOP off
+  set role anon;
+  select public.verified_access_activate_policy(
+    '11111111-1c1c-4000-8000-000000000001'::uuid,
+    '44444444-1c1c-4000-8000-000000000001'::uuid,
+    'runtime-role-check'::text,
+    'APPROVAL'::text,
+    null::text
+  );
+  \set anon_activate_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'anon_activate_sqlstate' = '42501' as sqlstate_ok \gset
+  \if :sqlstate_ok
+    \echo 'ANON_ACTIVATE_POLICY_SQLSTATE_42501'
+  \else
+    \echo 'anon activate-policy call did not return SQLSTATE 42501:' :anon_activate_sqlstate
+    \quit 1
+  \endif
+
+  \set ON_ERROR_STOP off
+  set role anon;
+  select public.verified_access_write_audit_event(
+    '11111111-1c1c-4000-8000-000000000001'::uuid,
+    'SERVICE_ROLE'::text,
+    'runtime-role-check'::text,
+    'POLICY'::text,
+    '44444444-1c1c-4000-8000-000000000001'::uuid,
+    'ROLE_CHECK'::text,
+    null::text,
+    null::text,
+    '{}'::jsonb
+  );
+  \set anon_audit_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'anon_audit_sqlstate' = '42501' as sqlstate_ok \gset
+  \if :sqlstate_ok
+    \echo 'ANON_AUDIT_HELPER_SQLSTATE_42501'
+  \else
+    \echo 'anon audit-helper call did not return SQLSTATE 42501:' :anon_audit_sqlstate
+    \quit 1
+  \endif
+
+  \set ON_ERROR_STOP off
+  set role authenticated;
+  select public.verified_access_create_policy_draft(
+    '11111111-1c1c-4000-8000-000000000001'::uuid,
+    '{}'::jsonb,
+    'runtime-role-check'::text,
+    null::uuid,
+    null::text
+  );
+  \set authenticated_create_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'authenticated_create_sqlstate' = '42501' as sqlstate_ok \gset
+  \if :sqlstate_ok
+    \echo 'AUTHENTICATED_CREATE_POLICY_SQLSTATE_42501'
+  \else
+    \echo 'authenticated create-policy call did not return SQLSTATE 42501:' :authenticated_create_sqlstate
+    \quit 1
+  \endif
+
+  \set ON_ERROR_STOP off
+  set role authenticated;
+  select public.verified_access_activate_policy(
+    '11111111-1c1c-4000-8000-000000000001'::uuid,
+    '44444444-1c1c-4000-8000-000000000001'::uuid,
+    'runtime-role-check'::text,
+    'APPROVAL'::text,
+    null::text
+  );
+  \set authenticated_activate_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'authenticated_activate_sqlstate' = '42501' as sqlstate_ok \gset
+  \if :sqlstate_ok
+    \echo 'AUTHENTICATED_ACTIVATE_POLICY_SQLSTATE_42501'
+  \else
+    \echo 'authenticated activate-policy call did not return SQLSTATE 42501:' :authenticated_activate_sqlstate
+    \quit 1
+  \endif
+
+  \set ON_ERROR_STOP off
+  set role authenticated;
+  select public.verified_access_write_audit_event(
+    '11111111-1c1c-4000-8000-000000000001'::uuid,
+    'SERVICE_ROLE'::text,
+    'runtime-role-check'::text,
+    'POLICY'::text,
+    '44444444-1c1c-4000-8000-000000000001'::uuid,
+    'ROLE_CHECK'::text,
+    null::text,
+    null::text,
+    '{}'::jsonb
+  );
+  \set authenticated_audit_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'authenticated_audit_sqlstate' = '42501' as sqlstate_ok \gset
+  \if :sqlstate_ok
+    \echo 'AUTHENTICATED_AUDIT_HELPER_SQLSTATE_42501'
+  \else
+    \echo 'authenticated audit-helper call did not return SQLSTATE 42501:' :authenticated_audit_sqlstate
+    \quit 1
+  \endif
+\endif
+
+select not exists (
+  select 1 from pg_roles where rolname = 'verified_access_runtime_denied_test'
+) as synthetic_role_removed;
+
+\echo 'VERIFIED_ACCESS_PHASE_1C_RUNTIME_ROLES_OK'

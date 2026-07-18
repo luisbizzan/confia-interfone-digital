@@ -161,7 +161,14 @@ jobs:
           }
 
           db_container_id() {
-            docker ps -a --filter 'label=com.supabase.cli.project' --format '{{.ID}} {{.Names}}' | awk '/db/ {print $1; exit}'
+            local candidate
+            for candidate in $(docker ps -a --filter 'label=com.supabase.cli.project' --format '{{.ID}}'); do
+              if docker inspect --format '{{.Config.Image}}' "$candidate" | grep -qE '(^|/)supabase/postgres:'; then
+                echo "$candidate"
+                return 0
+              fi
+            done
+            return 1
           }
 
           capture_db_logs() {
@@ -191,6 +198,39 @@ jobs:
           psql_checked() {
             psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
           }
+
+          cleanup_runtime_role() {
+            for attempt in $(seq 1 10); do
+              if pg_isready -h 127.0.0.1 -p 54322 -U postgres >/dev/null 2>&1; then
+                if [ "$(psql_checked -Atc "select count(*) from pg_roles where rolname = 'verified_access_runtime_denied_test'")" = "0" ]; then
+                  return 0
+                fi
+                psql_checked -c 'revoke verified_access_runtime_denied_test from postgres' >/dev/null 2>&1 || true
+                if psql_checked -c 'drop role if exists verified_access_runtime_denied_test' >/dev/null 2>&1; then
+                  return 0
+                fi
+              fi
+              sleep 2
+            done
+            echo '::error file=supabase/tests/verified_access_phase_1c_runtime_roles.psql::Could not remove synthetic runtime role.'
+            return 1
+          }
+
+          container="$(db_container_id)"
+          db_image="$(docker inspect --format '{{.Config.Image}}' "$container")"
+          db_image_tag="${db_image##*:}"
+          upstream_2112_affected=0
+          if [[ "$db_image_tag" =~ ^17\.6\.1\.([0-9]+)$ ]] && (( 10#${BASH_REMATCH[1]} >= 100 )); then
+            upstream_2112_affected=1
+          fi
+
+          {
+            echo "Supabase CLI: $(npx supabase --version)"
+            echo "Supabase Postgres image: ${db_image}"
+            echo "upstream_2112_affected=${upstream_2112_affected}"
+          } | tee -a /tmp/verified-access-1c-role-runtime.log
+          echo "SUPABASE_DB_IMAGE=${db_image}" >> "$GITHUB_ENV"
+          echo "UPSTREAM_2112_AFFECTED=${upstream_2112_affected}" >> "$GITHUB_ENV"
 
           psql_checked <<'SQL' >> /tmp/verified-access-1c-role-runtime.log
           select pg_backend_pid();
@@ -257,85 +297,23 @@ jobs:
             check_db_health "after simple role switch ${role_name}"
           done
 
-          expect_sqlstate() {
-            local label="$1"
-            local expected_sqlstate="$2"
-            local sql_file="$3"
-            local output_file="/tmp/verified-access-1c-role-check-${label//[^A-Za-z0-9_-]/_}.log"
-            local status
-
-            set +e
-            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f "$sql_file" > "$output_file" 2>&1
-            status=$?
-            set -e
-
-            {
-              echo "[$label]"
-              cat "$output_file"
-              echo
-            } >> /tmp/verified-access-1c-role-runtime.log
-
-            check_db_health "after ${label}"
-
-            if grep -qiE "server closed the connection unexpectedly|connection to server was lost|terminating connection|could not receive data from server" "$output_file"; then
-              capture_db_logs
-              message=$(tail -12 "$output_file" | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
-              echo "::error file=.github/workflows/verified-access-phase-1c.yml::${label} lost the database connection. ${message}"
-              exit 1
-            fi
-
-            if [ "$status" -eq 0 ] || ! grep -q "$expected_sqlstate" "$output_file"; then
-              capture_db_logs
-              message=$(tail -12 "$output_file" | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
-              echo "::error file=.github/workflows/verified-access-phase-1c.yml::${label} expected SQLSTATE ${expected_sqlstate}. ${message}"
-              exit 1
-            fi
-          }
-
-          for role_name in anon authenticated service_role; do
-            cat > "/tmp/verified-access-1c-${role_name}-create.sql" <<SQL
-          set role ${role_name};
-          select public.verified_access_create_policy_draft(
-            '11111111-1c1c-4000-8000-000000000001'::uuid,
-            '{}'::jsonb,
-            'role-check'::text,
-            null::uuid,
-            null::text
-          );
-          reset role;
-          SQL
-            expect_sqlstate "${role_name}-create-policy-rpc" "42501" "/tmp/verified-access-1c-${role_name}-create.sql"
-
-            cat > "/tmp/verified-access-1c-${role_name}-activate.sql" <<SQL
-          set role ${role_name};
-          select public.verified_access_activate_policy(
-            '11111111-1c1c-4000-8000-000000000001'::uuid,
-            '44444444-1c1c-4000-8000-000000000001'::uuid,
-            'role-check'::text,
-            'APPROVAL'::text,
-            null::text
-          );
-          reset role;
-          SQL
-            expect_sqlstate "${role_name}-activate-policy-rpc" "42501" "/tmp/verified-access-1c-${role_name}-activate.sql"
-
-            cat > "/tmp/verified-access-1c-${role_name}-audit.sql" <<SQL
-          set role ${role_name};
-          select public.verified_access_write_audit_event(
-            '11111111-1c1c-4000-8000-000000000001'::uuid,
-            'SERVICE_ROLE'::text,
-            'role-check'::text,
-            'POLICY'::text,
-            '44444444-1c1c-4000-8000-000000000001'::uuid,
-            'ROLE_CHECK'::text,
-            null::text,
-            null::text,
-            '{}'::jsonb
-          );
-          reset role;
-          SQL
-            expect_sqlstate "${role_name}-audit-helper" "42501" "/tmp/verified-access-1c-${role_name}-audit.sql"
-          done
+          cleanup_runtime_role
+          trap cleanup_runtime_role EXIT
+          set +e
+          psql_checked \
+            -v upstream_2112_affected="$upstream_2112_affected" \
+            -f supabase/tests/verified_access_phase_1c_runtime_roles.psql \
+            >> /tmp/verified-access-1c-role-runtime.log 2>&1
+          runtime_status=$?
+          set -e
+          if [ "$runtime_status" -ne 0 ]; then
+            check_db_health "after failed runtime role harness"
+            capture_db_logs
+            exit "$runtime_status"
+          fi
+          cleanup_runtime_role
+          trap - EXIT
+          check_db_health "after runtime role harness"
 
       - name: Run Supabase database lint
         run: npx supabase db lint
@@ -478,6 +456,41 @@ jobs:
             exit 1
           fi
 
+      - name: Re-run runtime role checks after reapply
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cleanup_runtime_role() {
+            for attempt in $(seq 1 10); do
+              if pg_isready -h 127.0.0.1 -p 54322 -U postgres >/dev/null 2>&1; then
+                role_count="$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from pg_roles where rolname = 'verified_access_runtime_denied_test'")"
+                if [ "$role_count" = "0" ]; then
+                  return 0
+                fi
+                psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c 'revoke verified_access_runtime_denied_test from postgres' >/dev/null 2>&1 || true
+                if psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c 'drop role if exists verified_access_runtime_denied_test' >/dev/null 2>&1; then
+                  return 0
+                fi
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          cleanup_runtime_role
+          trap cleanup_runtime_role EXIT
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 \
+            -v upstream_2112_affected="$UPSTREAM_2112_AFFECTED" \
+            -f supabase/tests/verified_access_phase_1c_runtime_roles.psql \
+            2>&1 | tee /tmp/verified-access-1c-reapply-runtime-roles.log
+          cleanup_runtime_role
+          trap - EXIT
+          pg_isready -h 127.0.0.1 -p 54322 -U postgres
+
       - name: Stop Supabase local stack
         if: always()
         run: npx supabase stop --no-backup || true
@@ -495,6 +508,7 @@ jobs:
             /tmp/verified-access-1c-pgtap.log
             /tmp/verified-access-1c-reapply-pgtap.log
             /tmp/verified-access-1c-reapply-integration.log
+            /tmp/verified-access-1c-reapply-runtime-roles.log
             /tmp/verified-access-1c-supabase-start-sanitized.log
           if-no-files-found: ignore
 
