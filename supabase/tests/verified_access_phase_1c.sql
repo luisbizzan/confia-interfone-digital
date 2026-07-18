@@ -92,6 +92,10 @@ select ok(
   'slot EXPIRED is final'
 );
 select ok(
+  public.verified_access_transition_allowed('slot.status', 'CANCELLED', 'EXPIRED'),
+  'slot CANCELLED can expire for technical reconciliation'
+);
+select ok(
   public.verified_access_transition_allowed('participant.registration_status', 'INVITED', 'SUBMITTED'),
   'participant registration can skip to SUBMITTED'
 );
@@ -102,6 +106,10 @@ select ok(
 select ok(
   public.verified_access_transition_allowed('network.signal.status', 'UNDER_REVIEW', 'ACTIVE'),
   'network signal can activate after review'
+);
+select ok(
+  public.verified_access_transition_allowed('network.case.status', 'REPORTED', 'SUBSTANTIATED'),
+  'reported case can be substantiated when required timestamps are supplied'
 );
 select ok(
   not public.verified_access_transition_allowed('network.case.status', 'DISMISSED', 'SUBSTANTIATED'),

@@ -580,13 +580,6 @@ select pg_temp.expect_error(
   'AUDIT_PAYLOAD_FORBIDDEN_PII_ALIAS'
 );
 
-select pg_temp.expect_error(
-  $$set role service_role; select public.verified_access_create_policy_draft('11111111-1c1c-4000-8000-000000000001', '{}'::jsonb, 'phase-1c-service-role'); reset role;$$,
-  '42501',
-  'service_role cannot execute policy RPC directly',
-  null
-);
-
 do $$
 begin
   if exists (

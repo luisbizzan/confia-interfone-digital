@@ -25,6 +25,7 @@ begin
       (p_old_status = 'OPEN' and p_new_status in ('RESERVED', 'CLAIMED', 'CANCELLED', 'EXPIRED'))
       or (p_old_status = 'RESERVED' and p_new_status in ('CLAIMED', 'CANCELLED', 'EXPIRED'))
       or (p_old_status = 'CLAIMED' and p_new_status in ('CANCELLED', 'EXPIRED'))
+      or (p_old_status = 'CANCELLED' and p_new_status = 'EXPIRED')
 
     when 'participant.registration_status' then
       (p_old_status = 'NOT_STARTED' and p_new_status in ('INVITED', 'IN_PROGRESS', 'SUBMITTED', 'CANCELLED', 'EXPIRED'))
@@ -77,7 +78,7 @@ begin
       or (p_old_status = 'DISPUTED' and p_new_status in ('ACTIVE', 'UNLINKED'))
 
     when 'network.case.status' then
-      (p_old_status = 'REPORTED' and p_new_status in ('TRIAGE', 'UNDER_REVIEW', 'DISMISSED', 'CLOSED', 'EXPIRED'))
+      (p_old_status = 'REPORTED' and p_new_status in ('TRIAGE', 'UNDER_REVIEW', 'SUBSTANTIATED', 'DISMISSED', 'CLOSED', 'EXPIRED'))
       or (p_old_status = 'TRIAGE' and p_new_status in ('UNDER_REVIEW', 'SUBSTANTIATED', 'DISMISSED', 'CLOSED', 'EXPIRED'))
       or (p_old_status = 'UNDER_REVIEW' and p_new_status in ('SUBSTANTIATED', 'DISMISSED', 'CLOSED', 'EXPIRED'))
       or (p_old_status = 'SUBSTANTIATED' and p_new_status in ('CLOSED', 'EXPIRED'))
