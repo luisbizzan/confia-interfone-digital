@@ -150,39 +150,13 @@ begin
 end;
 $$;
 
-create or replace function public.verified_access_policy_content_checksum(p_policy public.verified_access_policies)
+create or replace function public.verified_access_policy_content_checksum(p_policy jsonb)
 returns text
 language sql
 security invoker
 set search_path = public, pg_temp
 as $$
-  select md5(jsonb_build_object(
-    'schema_version', p_policy.schema_version,
-    'visitor_identity_mode', p_policy.visitor_identity_mode,
-    'service_identity_mode', p_policy.service_identity_mode,
-    'minimum_identity_assurance_level', p_policy.minimum_identity_assurance_level,
-    'visitor_background_mode', p_policy.visitor_background_mode,
-    'service_background_mode', p_policy.service_background_mode,
-    'network_identity_mode', p_policy.network_identity_mode,
-    'network_signal_mode', p_policy.network_signal_mode,
-    'network_signal_min_severity', p_policy.network_signal_min_severity,
-    'network_signal_rules', p_policy.network_signal_rules,
-    'network_hold_enabled', p_policy.network_hold_enabled,
-    'timezone', p_policy.timezone,
-    'invitation_ttl_minutes', p_policy.invitation_ttl_minutes,
-    'public_session_ttl_minutes', p_policy.public_session_ttl_minutes,
-    'max_visitor_participants', p_policy.max_visitor_participants,
-    'max_service_participants', p_policy.max_service_participants,
-    'max_request_duration_minutes', p_policy.max_request_duration_minutes,
-    'min_notice_minutes', p_policy.min_notice_minutes,
-    'max_notice_days', p_policy.max_notice_days,
-    'allow_open_slots', p_policy.allow_open_slots,
-    'privacy_approval_reference', p_policy.privacy_approval_reference,
-    'background_approval_reference', p_policy.background_approval_reference,
-    'network_approval_reference', p_policy.network_approval_reference,
-    'retention_settings', p_policy.retention_settings,
-    'additional_settings', p_policy.additional_settings
-  )::text);
+  select md5(p_policy::text);
 $$;
 
 create or replace function public.verified_access_validate_policy_state_machine()
@@ -361,7 +335,33 @@ begin
   v_policy.network_approval_reference := coalesce(nullif(p_policy->>'network_approval_reference', ''), v_policy.network_approval_reference);
   v_policy.retention_settings := coalesce(p_policy->'retention_settings', v_policy.retention_settings);
   v_policy.additional_settings := coalesce(p_policy->'additional_settings', v_policy.additional_settings);
-  v_policy.content_checksum := public.verified_access_policy_content_checksum(v_policy);
+  v_policy.content_checksum := public.verified_access_policy_content_checksum(jsonb_build_object(
+    'schema_version', v_policy.schema_version,
+    'visitor_identity_mode', v_policy.visitor_identity_mode,
+    'service_identity_mode', v_policy.service_identity_mode,
+    'minimum_identity_assurance_level', v_policy.minimum_identity_assurance_level,
+    'visitor_background_mode', v_policy.visitor_background_mode,
+    'service_background_mode', v_policy.service_background_mode,
+    'network_identity_mode', v_policy.network_identity_mode,
+    'network_signal_mode', v_policy.network_signal_mode,
+    'network_signal_min_severity', v_policy.network_signal_min_severity,
+    'network_signal_rules', v_policy.network_signal_rules,
+    'network_hold_enabled', v_policy.network_hold_enabled,
+    'timezone', v_policy.timezone,
+    'invitation_ttl_minutes', v_policy.invitation_ttl_minutes,
+    'public_session_ttl_minutes', v_policy.public_session_ttl_minutes,
+    'max_visitor_participants', v_policy.max_visitor_participants,
+    'max_service_participants', v_policy.max_service_participants,
+    'max_request_duration_minutes', v_policy.max_request_duration_minutes,
+    'min_notice_minutes', v_policy.min_notice_minutes,
+    'max_notice_days', v_policy.max_notice_days,
+    'allow_open_slots', v_policy.allow_open_slots,
+    'privacy_approval_reference', v_policy.privacy_approval_reference,
+    'background_approval_reference', v_policy.background_approval_reference,
+    'network_approval_reference', v_policy.network_approval_reference,
+    'retention_settings', v_policy.retention_settings,
+    'additional_settings', v_policy.additional_settings
+  ));
 
   insert into public.verified_access_policies (
     id, condominium_id, version, schema_version, status,
@@ -572,7 +572,7 @@ $$;
 
 revoke execute on function public.verified_access_policy_payload_allowed_keys() from public, anon, authenticated, service_role;
 revoke execute on function public.verified_access_validate_policy_payload(jsonb) from public, anon, authenticated, service_role;
-revoke execute on function public.verified_access_policy_content_checksum(public.verified_access_policies) from public, anon, authenticated, service_role;
+revoke execute on function public.verified_access_policy_content_checksum(jsonb) from public, anon, authenticated, service_role;
 revoke execute on function public.verified_access_validate_policy_state_machine() from public, anon, authenticated, service_role;
 revoke execute on function public.verified_access_create_policy_draft(uuid, jsonb, text, uuid, text) from public, anon, authenticated, service_role;
 revoke execute on function public.verified_access_activate_policy(uuid, uuid, text, text, text) from public, anon, authenticated, service_role;

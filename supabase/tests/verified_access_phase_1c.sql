@@ -10,6 +10,7 @@ select has_function('public', 'verified_access_validate_policy_state_machine', a
 select has_function('public', 'verified_access_create_policy_draft', array['uuid', 'jsonb', 'text', 'uuid', 'text'], 'create policy draft RPC exists');
 select has_function('public', 'verified_access_activate_policy', array['uuid', 'uuid', 'text', 'text', 'text'], 'activate policy RPC exists');
 select has_function('public', 'verified_access_retire_policy', array['uuid', 'uuid', 'text', 'text', 'text'], 'retire policy RPC exists');
+select has_function('public', 'verified_access_policy_content_checksum', array['jsonb'], 'policy checksum helper does not depend on policy table type');
 select has_function('public', 'verified_access_write_audit_event', array['uuid', 'text', 'text', 'text', 'uuid', 'text', 'text', 'text', 'jsonb'], 'audit helper exists');
 select has_function('public', 'verified_access_enqueue_outbox_event', array['uuid', 'text', 'uuid', 'text', 'text', 'jsonb'], 'outbox helper exists');
 

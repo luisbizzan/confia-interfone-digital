@@ -16,7 +16,7 @@ drop function if exists public.verified_access_enqueue_outbox_event(uuid, text, 
 drop function if exists public.verified_access_write_audit_event(uuid, text, text, text, uuid, text, text, text, jsonb);
 drop function if exists public.verified_access_assert_sanitized_payload(jsonb, text);
 drop function if exists public.verified_access_validate_policy_state_machine();
-drop function if exists public.verified_access_policy_content_checksum(public.verified_access_policies);
+drop function if exists public.verified_access_policy_content_checksum(jsonb);
 drop function if exists public.verified_access_validate_policy_payload(jsonb);
 drop function if exists public.verified_access_policy_payload_allowed_keys();
 drop function if exists public.verified_access_validate_network_appeal_state_machine();
