@@ -102,4 +102,39 @@ Diagnostic run `29651031221` confirmed:
 - simple role switching: success for all three runtime roles;
 - first explicit call as `anon`: backend SIGSEGV and recovery, matching #2112.
 
-Post-workaround CI: pending.
+## Post-workaround CI
+
+Workaround commit: `735d4c93bfb2f07ca2da4db1b95cd8be39ae3fa4`.
+
+- Phase 1C pull-request run `29653749644`: success.
+  - `database`: success, including migrations, pgTAP, integrations 1A/1B/1C,
+    runtime harness, db lint, rollback, rollback verification, reapplication,
+    post-reapplication pgTAP/integration, and post-reapplication runtime harness.
+  - `admin-web`: lint and build success.
+- Phase 1C push run `29653748217`: success with the same database and
+  `admin-web` sequence.
+- Phase 1A preservation run `29653749597`: database and `admin-web` success,
+  including rollback and reapplication.
+- Phase 1B preservation run `29653749594`: database and `admin-web` success,
+  including rollback and reapplication.
+- Vercel Preview deployment for the workaround commit: success.
+
+Environment recorded by the Phase 1C run:
+
+- Supabase CLI: `2.98.2`;
+- database image: `public.ecr.aws/supabase/postgres:17.6.1.106`;
+- PostgreSQL: `17.6` on `x86_64-pc-linux-gnu`;
+- `supautils` extension version: not exposed through `pg_extension` in this
+  image;
+- `supautils.hint_roles`: `anon, authenticated, service_role`;
+- `supautils.reserved_roles`: includes `service_role*`, `authenticated*`, and
+  `anon*`.
+
+The effective ACL matrix was false for every combination of the five protected
+functions and the three runtime roles. Every function had owner `postgres`,
+`prosecdef = true`, ACL `{postgres=X/postgres}`, and fixed
+`search_path = public, pg_temp`. Simple role switching passed for all three
+runtime roles. The synthetic role received SQLSTATE `42501` from create-policy,
+activate-policy, and audit-helper calls, was dropped, and the affected-image
+path recorded `SKIPPED_UPSTREAM_SUPABASE_POSTGRES_2112`. `pg_isready` reported
+the database accepting connections after the post-reapplication harness.
