@@ -34,7 +34,31 @@ This document records the Phase 1C execution evidence for state-machine hardenin
 - `npm run admin:build`: passed.
 - `npx supabase db reset`: blocked locally because Docker Desktop is not available on this Windows host.
 - `npx supabase db lint`: blocked locally because no Supabase local Postgres is listening on `127.0.0.1:54322`.
+- `1C-RUNTIME-PERMISSIONS` local reproduction: blocked locally because the Supabase CLI cannot connect to a Docker engine on this Windows host and `docker` is not available in the shell PATH.
+
+## Runtime Permissions Diagnostic
+
+The `verified-access-phase-1c.yml` runtime role check was hardened to diagnose the previous connection loss without changing grants:
+
+- introspects `has_function_privilege` for `anon`, `authenticated`, and `service_role`;
+- inspects `pg_proc` signatures, owners, `prosecdef`, ACLs, and fixed `search_path`;
+- verifies simple `SET ROLE` for each runtime role before calling RPCs;
+- calls Phase 1C RPCs/helpers with explicit five/nine-argument signatures;
+- accepts only SQLSTATE `42501` for negative execution checks;
+- records `pg_isready` and `docker ps -a` after each diagnostic step;
+- captures and sanitizes PostgreSQL container logs on connection loss or unexpected SQLSTATE.
 
 ## GitHub Actions Results
 
-Pending after push.
+Latest pre-diagnostic run:
+
+- Phase 1A preservation: success, run `29650084749`.
+- Phase 1B preservation: success, run `29650084762`.
+- Phase 1C: run `29650084731`.
+  - `admin-web`: success.
+  - migrations: success.
+  - pgTAP: success.
+  - integration SQL: success.
+  - runtime role permission checks: failed due connection loss while checking the first `anon` RPC call.
+
+Post-diagnostic CI: pending after the runtime permissions hardening commit.

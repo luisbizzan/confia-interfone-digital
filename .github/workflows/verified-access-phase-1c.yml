@@ -143,35 +143,198 @@ jobs:
         run: |
           set -euo pipefail
           : > /tmp/verified-access-1c-role-runtime.log
+          : > /tmp/verified-access-1c-db-health.log
+          : > /tmp/verified-access-1c-db-logs-sanitized.log
 
-          expect_permission_denied() {
+          sanitize_file() {
+            local source_file="$1"
+            local target_file="$2"
+            if [ ! -f "$source_file" ]; then
+              return 0
+            fi
+
+            sed -E \
+              -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|S3 Access Key|S3 Secret Key|API URL|DB URL|GraphQL URL|Studio URL|Inbucket URL|JWT_SECRET|POSTGRES_PASSWORD|connection string)/Id' \
+              -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+              -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+              "$source_file" > "$target_file"
+          }
+
+          db_container_id() {
+            docker ps -a --filter 'label=com.supabase.cli.project' --format '{{.ID}} {{.Names}}' | awk '/db/ {print $1; exit}'
+          }
+
+          capture_db_logs() {
+            local container
+            container="$(db_container_id || true)"
+            if [ -z "$container" ]; then
+              echo "No Supabase Postgres container found by label." > /tmp/verified-access-1c-db-logs-sanitized.log
+              docker ps -a >> /tmp/verified-access-1c-db-health.log 2>&1 || true
+              return 0
+            fi
+
+            docker logs --since 10m "$container" > /tmp/verified-access-1c-db-logs-raw.log 2>&1 || true
+            sanitize_file /tmp/verified-access-1c-db-logs-raw.log /tmp/verified-access-1c-db-logs-sanitized.log
+            rm -f /tmp/verified-access-1c-db-logs-raw.log
+          }
+
+          check_db_health() {
             local label="$1"
-            local sql="$2"
-            local output
+            {
+              echo "[$label]"
+              pg_isready -h 127.0.0.1 -p 54322 -U postgres || true
+              docker ps -a || true
+              echo
+            } >> /tmp/verified-access-1c-db-health.log 2>&1
+          }
+
+          psql_checked() {
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
+          }
+
+          psql_checked <<'SQL' >> /tmp/verified-access-1c-role-runtime.log
+          select pg_backend_pid();
+          select current_user, session_user;
+          select rolname, rolcanlogin, rolinherit
+          from pg_roles
+          where rolname in ('anon', 'authenticated', 'service_role')
+          order by rolname;
+
+          select
+            r.role_name,
+            has_function_privilege(r.role_name, 'public.verified_access_create_policy_draft(uuid,jsonb,text,uuid,text)', 'EXECUTE') as can_create_policy_draft,
+            has_function_privilege(r.role_name, 'public.verified_access_activate_policy(uuid,uuid,text,text,text)', 'EXECUTE') as can_activate_policy,
+            has_function_privilege(r.role_name, 'public.verified_access_retire_policy(uuid,uuid,text,text,text)', 'EXECUTE') as can_retire_policy,
+            has_function_privilege(r.role_name, 'public.verified_access_write_audit_event(uuid,text,text,text,uuid,text,text,text,jsonb)', 'EXECUTE') as can_write_audit_event
+          from (values ('anon'), ('authenticated'), ('service_role')) as r(role_name)
+          order by r.role_name;
+
+          do $$
+          declare
+            v_role text;
+            v_signature text;
+          begin
+            foreach v_role in array array['anon', 'authenticated', 'service_role']
+            loop
+              foreach v_signature in array array[
+                'public.verified_access_create_policy_draft(uuid,jsonb,text,uuid,text)',
+                'public.verified_access_activate_policy(uuid,uuid,text,text,text)',
+                'public.verified_access_retire_policy(uuid,uuid,text,text,text)',
+                'public.verified_access_write_audit_event(uuid,text,text,text,uuid,text,text,text,jsonb)'
+              ]
+              loop
+                if has_function_privilege(v_role, v_signature, 'EXECUTE') then
+                  raise exception 'unexpected EXECUTE privilege: role %, function %', v_role, v_signature
+                    using errcode = '42501';
+                end if;
+              end loop;
+            end loop;
+          end $$;
+
+          select
+            p.oid::regprocedure,
+            p.prosecdef,
+            p.proacl,
+            pg_get_userbyid(p.proowner) as owner,
+            p.proconfig
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public'
+            and p.proname in (
+              'verified_access_create_policy_draft',
+              'verified_access_activate_policy',
+              'verified_access_retire_policy',
+              'verified_access_write_audit_event',
+              'verified_access_enqueue_outbox_event'
+            )
+          order by p.oid::regprocedure::text;
+          SQL
+
+          check_db_health "after catalog introspection"
+
+          for role_name in anon authenticated service_role; do
+            psql_checked -c "set role ${role_name}; select current_user, session_user, 1;" >> /tmp/verified-access-1c-role-runtime.log
+            check_db_health "after simple role switch ${role_name}"
+          done
+
+          expect_sqlstate() {
+            local label="$1"
+            local expected_sqlstate="$2"
+            local sql_file="$3"
+            local output_file="/tmp/verified-access-1c-role-check-${label//[^A-Za-z0-9_-]/_}.log"
             local status
 
             set +e
-            output=$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -c "$sql" 2>&1)
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -v VERBOSITY=verbose -f "$sql_file" > "$output_file" 2>&1
             status=$?
             set -e
 
             {
               echo "[$label]"
-              echo "$output"
+              cat "$output_file"
               echo
             } >> /tmp/verified-access-1c-role-runtime.log
 
-            if [ "$status" -eq 0 ] || ! grep -qi "permission denied" <<< "$output"; then
-              message=$(echo "$output" | tail -8 | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
-              echo "::error file=supabase/tests/verified_access_phase_1c_integration.psql::${label} did not fail with permission denied. ${message}"
+            check_db_health "after ${label}"
+
+            if grep -qiE "server closed the connection unexpectedly|connection to server was lost|terminating connection|could not receive data from server" "$output_file"; then
+              capture_db_logs
+              message=$(tail -12 "$output_file" | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+              echo "::error file=.github/workflows/verified-access-phase-1c.yml::${label} lost the database connection. ${message}"
+              exit 1
+            fi
+
+            if [ "$status" -eq 0 ] || ! grep -q "$expected_sqlstate" "$output_file"; then
+              capture_db_logs
+              message=$(tail -12 "$output_file" | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+              echo "::error file=.github/workflows/verified-access-phase-1c.yml::${label} expected SQLSTATE ${expected_sqlstate}. ${message}"
               exit 1
             fi
           }
 
           for role_name in anon authenticated service_role; do
-            expect_permission_denied "${role_name} cannot execute policy create RPC" "set role ${role_name}; select public.verified_access_create_policy_draft('11111111-1c1c-4000-8000-000000000001', '{}'::jsonb, 'role-check');"
-            expect_permission_denied "${role_name} cannot execute policy activate RPC" "set role ${role_name}; select public.verified_access_activate_policy('11111111-1c1c-4000-8000-000000000001', '44444444-1c1c-4000-8000-000000000001', 'role-check', 'APPROVAL');"
-            expect_permission_denied "${role_name} cannot execute audit helper" "set role ${role_name}; select public.verified_access_write_audit_event('11111111-1c1c-4000-8000-000000000001', 'SERVICE_ROLE', 'role-check', 'POLICY', '44444444-1c1c-4000-8000-000000000001', 'ROLE_CHECK');"
+            cat > "/tmp/verified-access-1c-${role_name}-create.sql" <<SQL
+          set role ${role_name};
+          select public.verified_access_create_policy_draft(
+            '11111111-1c1c-4000-8000-000000000001'::uuid,
+            '{}'::jsonb,
+            'role-check'::text,
+            null::uuid,
+            null::text
+          );
+          reset role;
+          SQL
+            expect_sqlstate "${role_name}-create-policy-rpc" "42501" "/tmp/verified-access-1c-${role_name}-create.sql"
+
+            cat > "/tmp/verified-access-1c-${role_name}-activate.sql" <<SQL
+          set role ${role_name};
+          select public.verified_access_activate_policy(
+            '11111111-1c1c-4000-8000-000000000001'::uuid,
+            '44444444-1c1c-4000-8000-000000000001'::uuid,
+            'role-check'::text,
+            'APPROVAL'::text,
+            null::text
+          );
+          reset role;
+          SQL
+            expect_sqlstate "${role_name}-activate-policy-rpc" "42501" "/tmp/verified-access-1c-${role_name}-activate.sql"
+
+            cat > "/tmp/verified-access-1c-${role_name}-audit.sql" <<SQL
+          set role ${role_name};
+          select public.verified_access_write_audit_event(
+            '11111111-1c1c-4000-8000-000000000001'::uuid,
+            'SERVICE_ROLE'::text,
+            'role-check'::text,
+            'POLICY'::text,
+            '44444444-1c1c-4000-8000-000000000001'::uuid,
+            'ROLE_CHECK'::text,
+            null::text,
+            null::text,
+            '{}'::jsonb
+          );
+          reset role;
+          SQL
+            expect_sqlstate "${role_name}-audit-helper" "42501" "/tmp/verified-access-1c-${role_name}-audit.sql"
           done
 
       - name: Run Supabase database lint
@@ -327,6 +490,8 @@ jobs:
           path: |
             /tmp/verified-access-1c-integration.log
             /tmp/verified-access-1c-role-runtime.log
+            /tmp/verified-access-1c-db-health.log
+            /tmp/verified-access-1c-db-logs-sanitized.log
             /tmp/verified-access-1c-pgtap.log
             /tmp/verified-access-1c-reapply-pgtap.log
             /tmp/verified-access-1c-reapply-integration.log
