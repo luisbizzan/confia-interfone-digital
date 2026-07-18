@@ -7,7 +7,7 @@ Atualizado em 16 de julho de 2026.
 | Fase 0 — descoberta | Concluída | stack, tenant e módulos mapeados |
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
-| Fase 1C — invariantes e operações restritas | Planejada / revisão documental final | `phases/PHASE_1C.md`; requer novo contrato versionado |
+| Fase 1C — invariantes e operações restritas | Autorizada / aguardando execução | `execution/CURRENT_TASK.md`; `phases/PHASE_1C.md` |
 | Fase 1D — contratos e providers fake | Não iniciada | depende das portas aprovadas |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
@@ -64,14 +64,20 @@ Não foi criado:
 
 ## Fase 1C
 
-A Fase 1C possui plano documental em revisão:
+A Fase 1C está autorizada para execução pelo contrato versionado:
+
+```text
+docs/product/verified-access/execution/CURRENT_TASK.md
+```
+
+O plano de referência permanece em:
 
 ```text
 docs/product/verified-access/phases/PHASE_1C.md
 ```
 
-A implementação permanece não autorizada. Aguardar revisão humana e novo
-contrato versionado antes de iniciar qualquer execução.
+A execução deve respeitar integralmente o contrato atual. A Fase 1D permanece
+não iniciada.
 
 ## Migration drift
 
