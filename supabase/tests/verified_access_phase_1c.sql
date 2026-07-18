@@ -31,7 +31,6 @@ select ok(
         'verified_access_validate_network_appeal_state_machine'
       )
       and p.prosecdef = false
-    group by true
     having count(*) = 9
   ),
   'all state machine trigger functions are security invoker'
@@ -51,7 +50,6 @@ select ok(
         'verified_access_retire_policy'
       )
       and p.prosecdef = true
-    group by true
     having count(*) = 5
   ),
   'policy RPCs and audit/outbox helpers are security definer'
