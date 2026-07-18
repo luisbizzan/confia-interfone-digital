@@ -1,0 +1,537 @@
+name: Verified Access Phase 1C
+
+on:
+  push:
+    branches:
+      - agent/verified-access-phase-1c
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/tests/**"
+      - "supabase/rollback/**"
+      - ".github/workflows/verified-access-phase-1c.yml"
+      - "docs/verified-access-phase-1c*"
+      - "docs/product/verified-access/**"
+  workflow_dispatch:
+
+concurrency:
+  group: verified-access-phase-1c-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: database
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Start Supabase local stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/verified-access-1c-supabase-start.log
+          : > /tmp/verified-access-1c-supabase-start-sanitized.log
+          start_ok=0
+
+          sanitize_supabase_start_log() {
+            if [ ! -f /tmp/verified-access-1c-supabase-start.log ]; then
+              return 0
+            fi
+
+            sed -E \
+              -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|S3 Access Key|S3 Secret Key|API URL|DB URL|GraphQL URL|Studio URL|Inbucket URL|JWT_SECRET|POSTGRES_PASSWORD|connection string)/Id' \
+              -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+              -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+              /tmp/verified-access-1c-supabase-start.log > /tmp/verified-access-1c-supabase-start-sanitized.log
+          }
+
+          for attempt in 1 2 3; do
+            echo "Supabase start attempt ${attempt}/3" | tee -a /tmp/verified-access-1c-supabase-start.log
+            npx supabase stop --no-backup >> /tmp/verified-access-1c-supabase-start.log 2>&1 || true
+
+            if npx supabase start >> /tmp/verified-access-1c-supabase-start.log 2>&1; then
+              npx supabase status >> /tmp/verified-access-1c-supabase-start.log 2>&1 || true
+              start_ok=1
+              break
+            fi
+
+            npx supabase status >> /tmp/verified-access-1c-supabase-start.log 2>&1 || true
+            docker ps -a >> /tmp/verified-access-1c-supabase-start.log 2>&1 || true
+            sleep $((attempt * 20))
+          done
+
+          sanitize_supabase_start_log
+          rm -f /tmp/verified-access-1c-supabase-start.log
+
+          if [ "$start_ok" -eq 1 ]; then
+            exit 0
+          fi
+
+          {
+            echo '::group::Supabase start failure sanitized tail'
+            tail -120 /tmp/verified-access-1c-supabase-start-sanitized.log
+            echo '::endgroup::'
+          }
+          message=$(tail -20 /tmp/verified-access-1c-supabase-start-sanitized.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+          echo "::error file=.github/workflows/verified-access-phase-1c.yml::Supabase local stack failed after 3 attempts. ${message}"
+          exit 1
+
+      - name: Apply migrations from scratch
+        run: npx supabase db reset
+
+      - name: Run pgTAP database tests
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          npx supabase test db 2>&1 | tee /tmp/verified-access-1c-pgtap.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '::group::pgTAP failure tail'
+              tail -100 /tmp/verified-access-1c-pgtap.log
+              echo '::endgroup::'
+            }
+            message=$(tail -24 /tmp/verified-access-1c-pgtap.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1c.sql::${message}"
+            exit "$status"
+          fi
+
+      - name: Run integration SQL scenarios
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1a_integration.psql 2>&1 | tee /tmp/verified-access-1c-integration.log
+          status_a=${PIPESTATUS[0]}
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1b_integration.psql 2>&1 | tee -a /tmp/verified-access-1c-integration.log
+          status_b=${PIPESTATUS[0]}
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1c_integration.psql 2>&1 | tee -a /tmp/verified-access-1c-integration.log
+          status_c=${PIPESTATUS[0]}
+          if [ "$status_a" -ne 0 ] || [ "$status_b" -ne 0 ] || [ "$status_c" -ne 0 ]; then
+            {
+              echo '::group::Integration failure tail'
+              tail -80 /tmp/verified-access-1c-integration.log
+              echo '::endgroup::'
+            }
+            message=$(tail -24 /tmp/verified-access-1c-integration.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1c_integration.psql::${message}"
+            exit 1
+          fi
+
+      - name: Run runtime role permission checks
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/verified-access-1c-role-runtime.log
+          : > /tmp/verified-access-1c-db-health.log
+          : > /tmp/verified-access-1c-db-logs-sanitized.log
+
+          sanitize_file() {
+            local source_file="$1"
+            local target_file="$2"
+            if [ ! -f "$source_file" ]; then
+              return 0
+            fi
+
+            sed -E \
+              -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|S3 Access Key|S3 Secret Key|API URL|DB URL|GraphQL URL|Studio URL|Inbucket URL|JWT_SECRET|POSTGRES_PASSWORD|connection string)/Id' \
+              -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+              -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+              "$source_file" > "$target_file"
+          }
+
+          db_container_id() {
+            local candidate
+            for candidate in $(docker ps -a --filter 'label=com.supabase.cli.project' --format '{{.ID}}'); do
+              if docker inspect --format '{{.Config.Image}}' "$candidate" | grep -qE '(^|/)supabase/postgres:'; then
+                echo "$candidate"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          capture_db_logs() {
+            local container
+            container="$(db_container_id || true)"
+            if [ -z "$container" ]; then
+              echo "No Supabase Postgres container found by label." > /tmp/verified-access-1c-db-logs-sanitized.log
+              docker ps -a >> /tmp/verified-access-1c-db-health.log 2>&1 || true
+              return 0
+            fi
+
+            docker logs --since 10m "$container" > /tmp/verified-access-1c-db-logs-raw.log 2>&1 || true
+            sanitize_file /tmp/verified-access-1c-db-logs-raw.log /tmp/verified-access-1c-db-logs-sanitized.log
+            rm -f /tmp/verified-access-1c-db-logs-raw.log
+          }
+
+          check_db_health() {
+            local label="$1"
+            {
+              echo "[$label]"
+              pg_isready -h 127.0.0.1 -p 54322 -U postgres || true
+              docker ps -a || true
+              echo
+            } >> /tmp/verified-access-1c-db-health.log 2>&1
+          }
+
+          psql_checked() {
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"
+          }
+
+          cleanup_runtime_role() {
+            for attempt in $(seq 1 10); do
+              if pg_isready -h 127.0.0.1 -p 54322 -U postgres >/dev/null 2>&1; then
+                if [ "$(psql_checked -Atc "select count(*) from pg_roles where rolname = 'verified_access_runtime_denied_test'")" = "0" ]; then
+                  return 0
+                fi
+                psql_checked -c 'revoke verified_access_runtime_denied_test from postgres' >/dev/null 2>&1 || true
+                if psql_checked -c 'drop role if exists verified_access_runtime_denied_test' >/dev/null 2>&1; then
+                  return 0
+                fi
+              fi
+              sleep 2
+            done
+            echo '::error file=supabase/tests/verified_access_phase_1c_runtime_roles.psql::Could not remove synthetic runtime role.'
+            return 1
+          }
+
+          container="$(db_container_id)"
+          db_image="$(docker inspect --format '{{.Config.Image}}' "$container")"
+          db_image_tag="${db_image##*:}"
+          upstream_2112_affected=0
+          if [[ "$db_image_tag" =~ ^17\.6\.1\.([0-9]+)$ ]] && (( 10#${BASH_REMATCH[1]} >= 100 )); then
+            upstream_2112_affected=1
+          fi
+
+          {
+            echo "Supabase CLI: $(npx supabase --version)"
+            echo "Supabase Postgres image: ${db_image}"
+            echo "upstream_2112_affected=${upstream_2112_affected}"
+          } | tee -a /tmp/verified-access-1c-role-runtime.log
+          echo "SUPABASE_DB_IMAGE=${db_image}" >> "$GITHUB_ENV"
+          echo "UPSTREAM_2112_AFFECTED=${upstream_2112_affected}" >> "$GITHUB_ENV"
+
+          psql_checked <<'SQL' >> /tmp/verified-access-1c-role-runtime.log
+          select pg_backend_pid();
+          select current_user, session_user;
+          select rolname, rolcanlogin, rolinherit
+          from pg_roles
+          where rolname in ('anon', 'authenticated', 'service_role')
+          order by rolname;
+
+          select
+            r.role_name,
+            has_function_privilege(r.role_name, 'public.verified_access_create_policy_draft(uuid,jsonb,text,uuid,text)', 'EXECUTE') as can_create_policy_draft,
+            has_function_privilege(r.role_name, 'public.verified_access_activate_policy(uuid,uuid,text,text,text)', 'EXECUTE') as can_activate_policy,
+            has_function_privilege(r.role_name, 'public.verified_access_retire_policy(uuid,uuid,text,text,text)', 'EXECUTE') as can_retire_policy,
+            has_function_privilege(r.role_name, 'public.verified_access_write_audit_event(uuid,text,text,text,uuid,text,text,text,jsonb)', 'EXECUTE') as can_write_audit_event
+          from (values ('anon'), ('authenticated'), ('service_role')) as r(role_name)
+          order by r.role_name;
+
+          do $$
+          declare
+            v_role text;
+            v_signature text;
+          begin
+            foreach v_role in array array['anon', 'authenticated', 'service_role']
+            loop
+              foreach v_signature in array array[
+                'public.verified_access_create_policy_draft(uuid,jsonb,text,uuid,text)',
+                'public.verified_access_activate_policy(uuid,uuid,text,text,text)',
+                'public.verified_access_retire_policy(uuid,uuid,text,text,text)',
+                'public.verified_access_write_audit_event(uuid,text,text,text,uuid,text,text,text,jsonb)'
+              ]
+              loop
+                if has_function_privilege(v_role, v_signature, 'EXECUTE') then
+                  raise exception 'unexpected EXECUTE privilege: role %, function %', v_role, v_signature
+                    using errcode = '42501';
+                end if;
+              end loop;
+            end loop;
+          end $$;
+
+          select
+            p.oid::regprocedure,
+            p.prosecdef,
+            p.proacl,
+            pg_get_userbyid(p.proowner) as owner,
+            p.proconfig
+          from pg_proc p
+          join pg_namespace n on n.oid = p.pronamespace
+          where n.nspname = 'public'
+            and p.proname in (
+              'verified_access_create_policy_draft',
+              'verified_access_activate_policy',
+              'verified_access_retire_policy',
+              'verified_access_write_audit_event',
+              'verified_access_enqueue_outbox_event'
+            )
+          order by p.oid::regprocedure::text;
+          SQL
+
+          check_db_health "after catalog introspection"
+
+          for role_name in anon authenticated service_role; do
+            psql_checked -c "set role ${role_name}; select current_user, session_user, 1;" >> /tmp/verified-access-1c-role-runtime.log
+            check_db_health "after simple role switch ${role_name}"
+          done
+
+          cleanup_runtime_role
+          trap cleanup_runtime_role EXIT
+          set +e
+          psql_checked \
+            -v upstream_2112_affected="$upstream_2112_affected" \
+            -f supabase/tests/verified_access_phase_1c_runtime_roles.psql \
+            >> /tmp/verified-access-1c-role-runtime.log 2>&1
+          runtime_status=$?
+          set -e
+          if [ "$runtime_status" -ne 0 ]; then
+            check_db_health "after failed runtime role harness"
+            capture_db_logs
+            exit "$runtime_status"
+          fi
+          cleanup_runtime_role
+          trap - EXIT
+          check_db_health "after runtime role harness"
+
+      - name: Run Supabase database lint
+        run: npx supabase db lint
+
+      - name: Create rollback sentinel
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          insert into public.condominiums (id, name, document)
+          values ('aaaaaaaa-1c1c-4000-8000-000000000001', 'Verified Access Phase 1C CI Sentinel', 'CI-1C')
+          on conflict (id) do nothing;
+
+          insert into public.condominium_features (condominium_id, feature_key, enabled)
+          values
+            ('aaaaaaaa-1c1c-4000-8000-000000000001', 'INTERCOM', true),
+            ('aaaaaaaa-1c1c-4000-8000-000000000001', 'VERIFIED_ACCESS', false),
+            ('aaaaaaaa-1c1c-4000-8000-000000000001', 'VERIFIED_ACCESS_BACKGROUND_CHECK', false),
+            ('aaaaaaaa-1c1c-4000-8000-000000000001', 'VERIFIED_ACCESS_NETWORK_IDENTITY', false),
+            ('aaaaaaaa-1c1c-4000-8000-000000000001', 'VERIFIED_ACCESS_NETWORK_SIGNALS', false),
+            ('aaaaaaaa-1c1c-4000-8000-000000000001', 'VERIFIED_ACCESS_NETWORK_HOLD', false)
+          on conflict (condominium_id, feature_key) do update
+            set enabled = excluded.enabled;
+          SQL
+
+      - name: Roll back Phase 1C objects
+        env:
+          PGPASSWORD: postgres
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rollback/20260718100000_verified_access_phase_1c_rollback.sql
+
+      - name: Verify rollback scope
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          declare
+            v_sentinel_condominium_id uuid := 'aaaaaaaa-1c1c-4000-8000-000000000001';
+          begin
+            if exists (
+              select 1
+              from pg_proc p
+              join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public'
+                and p.proname in (
+                  'verified_access_transition_allowed',
+                  'verified_access_validate_policy_state_machine',
+                  'verified_access_create_policy_draft',
+                  'verified_access_activate_policy',
+                  'verified_access_retire_policy',
+                  'verified_access_write_audit_event',
+                  'verified_access_enqueue_outbox_event'
+                )
+            ) then
+              raise exception 'rollback left Phase 1C functions behind';
+            end if;
+
+            if to_regclass('public.verified_access_requests') is null then
+              raise exception 'rollback removed Phase 1A requests';
+            end if;
+
+            if to_regclass('public.verified_access_network_subjects') is null then
+              raise exception 'rollback removed Phase 1B network subjects';
+            end if;
+
+            if to_regclass('public.persons') is null then
+              raise exception 'rollback removed public.persons';
+            end if;
+
+            if not exists (
+              select 1
+              from public.condominium_features
+              where condominium_id = v_sentinel_condominium_id
+                and feature_key = 'INTERCOM'
+                and enabled is true
+            ) then
+              raise exception 'rollback removed INTERCOM feature sentinel';
+            end if;
+
+            if exists (
+              select 1
+              from public.condominium_features
+              where condominium_id = v_sentinel_condominium_id
+                and feature_key in (
+                  'VERIFIED_ACCESS',
+                  'VERIFIED_ACCESS_BACKGROUND_CHECK',
+                  'VERIFIED_ACCESS_NETWORK_IDENTITY',
+                  'VERIFIED_ACCESS_NETWORK_SIGNALS',
+                  'VERIFIED_ACCESS_NETWORK_HOLD'
+                )
+                and enabled is true
+            ) then
+              raise exception 'rollback enabled a verified access feature sentinel';
+            end if;
+          end $$;
+          SQL
+
+      - name: Reapply migrations
+        run: npx supabase db reset
+
+      - name: Re-run pgTAP smoke tests after reapply
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          npx supabase test db 2>&1 | tee /tmp/verified-access-1c-reapply-pgtap.log
+          status=${PIPESTATUS[0]}
+          if [ "$status" -ne 0 ]; then
+            {
+              echo '::group::Reapply pgTAP failure tail'
+              tail -100 /tmp/verified-access-1c-reapply-pgtap.log
+              echo '::endgroup::'
+            }
+            message=$(tail -24 /tmp/verified-access-1c-reapply-pgtap.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1c.sql::${message}"
+            exit "$status"
+          fi
+
+      - name: Re-run integration smoke after reapply
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set +e
+          set -o pipefail
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1a_integration.psql 2>&1 | tee /tmp/verified-access-1c-reapply-integration.log
+          status_a=${PIPESTATUS[0]}
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1b_integration.psql 2>&1 | tee -a /tmp/verified-access-1c-reapply-integration.log
+          status_b=${PIPESTATUS[0]}
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_1c_integration.psql 2>&1 | tee -a /tmp/verified-access-1c-reapply-integration.log
+          status_c=${PIPESTATUS[0]}
+          if [ "$status_a" -ne 0 ] || [ "$status_b" -ne 0 ] || [ "$status_c" -ne 0 ]; then
+            {
+              echo '::group::Reapply integration failure tail'
+              tail -80 /tmp/verified-access-1c-reapply-integration.log
+              echo '::endgroup::'
+            }
+            message=$(tail -24 /tmp/verified-access-1c-reapply-integration.log | sed 's/%/%25/g; s/\r/%0D/g; s/$/%0A/' | tr -d '\n')
+            echo "::error file=supabase/tests/verified_access_phase_1c_integration.psql::${message}"
+            exit 1
+          fi
+
+      - name: Re-run runtime role checks after reapply
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          cleanup_runtime_role() {
+            for attempt in $(seq 1 10); do
+              if pg_isready -h 127.0.0.1 -p 54322 -U postgres >/dev/null 2>&1; then
+                role_count="$(psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -Atc "select count(*) from pg_roles where rolname = 'verified_access_runtime_denied_test'")"
+                if [ "$role_count" = "0" ]; then
+                  return 0
+                fi
+                psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c 'revoke verified_access_runtime_denied_test from postgres' >/dev/null 2>&1 || true
+                if psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -c 'drop role if exists verified_access_runtime_denied_test' >/dev/null 2>&1; then
+                  return 0
+                fi
+              fi
+              sleep 2
+            done
+            return 1
+          }
+
+          cleanup_runtime_role
+          trap cleanup_runtime_role EXIT
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 \
+            -v upstream_2112_affected="$UPSTREAM_2112_AFFECTED" \
+            -f supabase/tests/verified_access_phase_1c_runtime_roles.psql \
+            2>&1 | tee /tmp/verified-access-1c-reapply-runtime-roles.log
+          cleanup_runtime_role
+          trap - EXIT
+          pg_isready -h 127.0.0.1 -p 54322 -U postgres
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: npx supabase stop --no-backup || true
+
+      - name: Upload diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-access-phase-1c-database-diagnostics
+          path: |
+            /tmp/verified-access-1c-integration.log
+            /tmp/verified-access-1c-role-runtime.log
+            /tmp/verified-access-1c-db-health.log
+            /tmp/verified-access-1c-db-logs-sanitized.log
+            /tmp/verified-access-1c-pgtap.log
+            /tmp/verified-access-1c-reapply-pgtap.log
+            /tmp/verified-access-1c-reapply-integration.log
+            /tmp/verified-access-1c-reapply-runtime-roles.log
+            /tmp/verified-access-1c-supabase-start-sanitized.log
+          if-no-files-found: ignore
+
+  admin-web:
+    name: admin-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint admin web
+        run: npm run admin:lint
+
+      - name: Build admin web
+        run: npm run admin:build

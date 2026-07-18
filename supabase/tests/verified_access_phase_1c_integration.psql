@@ -1,0 +1,601 @@
+\set ON_ERROR_STOP on
+
+begin;
+
+insert into public.roles (id, name)
+values ('12121212-1c1c-4111-8111-111111111111', 'VERIFIED_ACCESS_PHASE_1C_TEST_ROLE')
+on conflict (name) do update
+  set name = excluded.name;
+
+insert into auth.users (
+  id,
+  instance_id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values
+  ('33333333-1c1c-4000-8000-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'verified-access-phase-1c-a@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('33333333-1c1c-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'verified-access-phase-1c-b@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now())
+on conflict (id) do nothing;
+
+insert into public.condominiums (id, name, document)
+values
+  ('11111111-1c1c-4000-8000-000000000001', 'Verified Access Phase 1C Test A', 'VA-1C-A'),
+  ('11111111-1c1c-4000-8000-000000000002', 'Verified Access Phase 1C Test B', 'VA-1C-B')
+on conflict (id) do nothing;
+
+insert into public.units (id, condominium_id, type, block, number)
+values
+  ('22222222-1c1c-4000-8000-000000000001', '11111111-1c1c-4000-8000-000000000001', 'APARTMENT', 'C', '101'),
+  ('22222222-1c1c-4000-8000-000000000002', '11111111-1c1c-4000-8000-000000000002', 'APARTMENT', 'D', '202')
+on conflict (id) do nothing;
+
+insert into public.user_profiles (id, condominium_id, role_id)
+values
+  ('33333333-1c1c-4000-8000-000000000001', '11111111-1c1c-4000-8000-000000000001', '12121212-1c1c-4111-8111-111111111111'),
+  ('33333333-1c1c-4000-8000-000000000002', '11111111-1c1c-4000-8000-000000000002', '12121212-1c1c-4111-8111-111111111111')
+on conflict (id) do update
+  set condominium_id = excluded.condominium_id,
+      role_id = excluded.role_id;
+
+insert into public.verified_access_policies (
+  id,
+  condominium_id,
+  version,
+  status,
+  visitor_identity_mode,
+  service_identity_mode,
+  visitor_background_mode,
+  service_background_mode,
+  content_checksum
+)
+values
+  ('44444444-1c1c-4000-8000-000000000001', '11111111-1c1c-4000-8000-000000000001', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', repeat('1', 64)),
+  ('44444444-1c1c-4000-8000-000000000002', '11111111-1c1c-4000-8000-000000000002', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', repeat('2', 64));
+
+insert into public.verified_access_requests (
+  id,
+  condominium_id,
+  unit_id,
+  requested_by_user_id,
+  request_type,
+  status,
+  starts_at,
+  ends_at,
+  timezone,
+  participant_limit,
+  policy_id,
+  policy_version
+)
+values
+  ('55555555-1c1c-4000-8000-000000000001', '11111111-1c1c-4000-8000-000000000001', '22222222-1c1c-4000-8000-000000000001', '33333333-1c1c-4000-8000-000000000001', 'VISITOR', 'DRAFT', now(), now() + interval '1 day', 'America/Sao_Paulo', 2, '44444444-1c1c-4000-8000-000000000001', 1),
+  ('55555555-1c1c-4000-8000-000000000002', '11111111-1c1c-4000-8000-000000000002', '22222222-1c1c-4000-8000-000000000002', '33333333-1c1c-4000-8000-000000000002', 'VISITOR', 'DRAFT', now(), now() + interval '1 day', 'America/Sao_Paulo', 1, '44444444-1c1c-4000-8000-000000000002', 1);
+
+insert into public.verified_access_participant_slots (id, condominium_id, request_id, slot_number, status, claimed_at)
+values
+  ('66666666-1c1c-4000-8000-000000000001', '11111111-1c1c-4000-8000-000000000001', '55555555-1c1c-4000-8000-000000000001', 1, 'OPEN', null),
+  ('66666666-1c1c-4000-8000-000000000002', '11111111-1c1c-4000-8000-000000000001', '55555555-1c1c-4000-8000-000000000001', 2, 'OPEN', null);
+
+insert into public.verified_access_identity_profiles (
+  id,
+  condominium_id,
+  cpf_ciphertext,
+  cpf_tenant_hmac,
+  document_type,
+  document_number_ciphertext,
+  document_number_tenant_hmac,
+  full_name_ciphertext,
+  encryption_key_version,
+  hmac_key_version,
+  identity_assurance_level
+)
+values (
+  '77777777-1c1c-4000-8000-000000000001',
+  '11111111-1c1c-4000-8000-000000000001',
+  '\x01'::bytea,
+  repeat('a', 32),
+  'CPF',
+  '\x02'::bytea,
+  repeat('b', 32),
+  '\x03'::bytea,
+  1,
+  1,
+  'IDENTITY_VERIFIED'
+);
+
+insert into public.verified_access_participants (
+  id,
+  condominium_id,
+  request_id,
+  slot_id,
+  identity_profile_id,
+  registration_status,
+  identity_status,
+  background_status,
+  network_status,
+  eligibility_status
+)
+values (
+  '88888888-1c1c-4000-8000-000000000001',
+  '11111111-1c1c-4000-8000-000000000001',
+  '55555555-1c1c-4000-8000-000000000001',
+  '66666666-1c1c-4000-8000-000000000001',
+  '77777777-1c1c-4000-8000-000000000001',
+  'INVITED',
+  'UNVERIFIED',
+  'NOT_STARTED',
+  'NOT_ENABLED',
+  'PENDING'
+);
+
+insert into public.verified_access_network_subjects (
+  id,
+  status,
+  identity_assurance_level,
+  first_verified_at,
+  last_verified_at,
+  revalidation_due_at,
+  retention_until
+)
+values (
+  '99999999-1c1c-4000-8000-000000000001',
+  'ACTIVE',
+  'IDENTITY_VERIFIED',
+  now(),
+  now(),
+  now() + interval '90 days',
+  now() + interval '365 days'
+);
+
+insert into public.verified_access_network_subject_identifiers (
+  id,
+  network_subject_id,
+  identifier_type,
+  identifier_hmac,
+  hmac_key_version,
+  canonicalization_version,
+  status,
+  verified_at
+)
+values (
+  'aaaaaaaa-1c1c-4000-8000-000000000001',
+  '99999999-1c1c-4000-8000-000000000001',
+  'CPF',
+  repeat('q', 32),
+  1,
+  1,
+  'ACTIVE',
+  now()
+);
+
+insert into public.verified_access_network_subject_links (
+  network_subject_id,
+  condominium_id,
+  identity_profile_id,
+  link_status,
+  link_reason,
+  identity_assurance_level
+)
+values (
+  '99999999-1c1c-4000-8000-000000000001',
+  '11111111-1c1c-4000-8000-000000000001',
+  '77777777-1c1c-4000-8000-000000000001',
+  'ACTIVE',
+  'IDENTITY_VERIFIED',
+  'IDENTITY_VERIFIED'
+);
+
+insert into public.verified_access_network_security_cases (
+  id,
+  network_subject_id,
+  source_type,
+  source_condominium_id,
+  source_participant_id,
+  category,
+  severity,
+  status,
+  evidence_assurance_level,
+  summary_code,
+  reported_by_actor_type,
+  reported_by_actor_id,
+  triaged_by_actor_id,
+  triaged_at,
+  substantiated_at
+)
+values (
+  'bbbbbbbb-1c1c-4000-8000-000000000001',
+  '99999999-1c1c-4000-8000-000000000001',
+  'CONDOMINIUM_REPORT',
+  '11111111-1c1c-4000-8000-000000000001',
+  '88888888-1c1c-4000-8000-000000000001',
+  'IDENTITY_IMPERSONATION_SUSPECTED',
+  'HIGH',
+  'SUBSTANTIATED',
+  'MANUAL_VERIFIED',
+  'IDENTITY_IMPERSONATION_CONFIRMED',
+  'CONDOMINIUM_OPERATOR',
+  'phase-1c-reporter',
+  'phase-1c-triager',
+  now(),
+  now()
+);
+
+insert into public.verified_access_network_signals (
+  id,
+  network_subject_id,
+  source_case_id,
+  category,
+  severity,
+  effect,
+  status,
+  policy_version,
+  reason_code,
+  valid_from,
+  expires_at,
+  review_due_at,
+  proposed_by_actor_type,
+  proposed_by_actor_id
+)
+values (
+  'cccccccc-1c1c-4000-8000-000000000001',
+  '99999999-1c1c-4000-8000-000000000001',
+  'bbbbbbbb-1c1c-4000-8000-000000000001',
+  'IDENTITY_IMPERSONATION_CONFIRMED',
+  'HIGH',
+  'REVALIDATE_IDENTITY',
+  'DRAFT',
+  1,
+  'IDENTITY_IMPERSONATION_CONFIRMED',
+  now(),
+  now() + interval '30 days',
+  now() + interval '15 days',
+  'SECURITY_REVIEWER',
+  'phase-1c-reviewer'
+);
+
+insert into public.verified_access_network_appeals (
+  id,
+  network_subject_id,
+  signal_id,
+  status,
+  request_reference_hash,
+  opened_at,
+  review_due_at
+)
+values (
+  'dddddddd-1c1c-4000-8000-000000000001',
+  '99999999-1c1c-4000-8000-000000000001',
+  'cccccccc-1c1c-4000-8000-000000000001',
+  'OPEN',
+  repeat('f', 32),
+  now(),
+  now() + interval '7 days'
+);
+
+create or replace function pg_temp.expect_error(p_sql text, p_expected_sqlstate text, p_label text, p_expected_message text default null)
+returns void
+language plpgsql
+as $$
+begin
+  execute p_sql;
+  raise exception 'Expected % for %', p_expected_sqlstate, p_label
+    using errcode = 'ZX001';
+exception
+  when others then
+    if sqlstate <> p_expected_sqlstate then
+      raise exception 'Expected %, got % for %', p_expected_sqlstate, sqlstate, p_label;
+    end if;
+
+    if p_expected_message is not null and position(p_expected_message in sqlerrm) = 0 then
+      raise exception 'Expected message containing %, got % for %', p_expected_message, sqlerrm, p_label;
+    end if;
+end;
+$$;
+
+create or replace function pg_temp.assert_true(p_condition boolean, p_label text)
+returns void
+language plpgsql
+as $$
+begin
+  if not coalesce(p_condition, false) then
+    raise exception 'Assertion failed: %', p_label;
+  end if;
+end;
+$$;
+
+update public.verified_access_requests
+set status = 'INVITATIONS_PENDING'
+where id = '55555555-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_requests set status = 'DRAFT' where id = '55555555-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'request cannot go backwards',
+  'REQUEST_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_participant_slots
+set status = 'RESERVED',
+    claimed_at = now()
+where id = '66666666-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_participant_slots set status = 'OPEN', claimed_at = null where id = '66666666-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'slot cannot reopen',
+  'SLOT_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_participants
+set registration_status = 'SUBMITTED',
+    identity_status = 'CONTACT_VERIFIED',
+    background_status = 'PENDING',
+    network_status = 'NO_ACTIVE_NETWORK_SIGNAL',
+    eligibility_status = 'REVIEW_REQUIRED'
+where id = '88888888-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_participants set eligibility_status = 'PENDING' where id = '88888888-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'eligibility cannot go review to pending',
+  'PARTICIPANT_ELIGIBILITY_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_network_subjects
+set status = 'UNDER_REVIEW'
+where id = '99999999-1c1c-4000-8000-000000000001';
+
+insert into public.verified_access_network_subjects (
+  id,
+  status,
+  identity_assurance_level,
+  first_verified_at,
+  last_verified_at,
+  merged_into_subject_id
+)
+values (
+  '99999999-1c1c-4000-8000-000000000002',
+  'MERGED',
+  'IDENTITY_VERIFIED',
+  now(),
+  now(),
+  '99999999-1c1c-4000-8000-000000000001'
+);
+
+select pg_temp.expect_error(
+  $$update public.verified_access_network_subjects set status = 'ACTIVE', merged_into_subject_id = null where id = '99999999-1c1c-4000-8000-000000000002'$$,
+  'P0001',
+  'merged subject cannot reactivate',
+  'NETWORK_SUBJECT_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_network_subject_identifiers
+set status = 'REVOKED',
+    revoked_at = now(),
+    revoked_reason_code = 'IDENTIFIER_ROTATED'
+where id = 'aaaaaaaa-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_network_subject_identifiers set status = 'ACTIVE', revoked_at = null, revoked_reason_code = null where id = 'aaaaaaaa-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'identifier cannot reactivate',
+  'NETWORK_IDENTIFIER_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_network_security_cases
+set status = 'CLOSED',
+    closed_at = now()
+where id = 'bbbbbbbb-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_network_security_cases set status = 'UNDER_REVIEW', closed_at = null where id = 'bbbbbbbb-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'closed case cannot reopen',
+  'NETWORK_CASE_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_network_signals
+set status = 'UNDER_REVIEW'
+where id = 'cccccccc-1c1c-4000-8000-000000000001';
+
+update public.verified_access_network_signals
+set status = 'ACTIVE',
+    activated_at = now(),
+    activated_by_actor_id = 'phase-1c-reviewer'
+where id = 'cccccccc-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_network_signals set status = 'DRAFT', activated_at = null, activated_by_actor_id = null where id = 'cccccccc-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'active signal cannot return to draft',
+  'NETWORK_SIGNAL_STATUS_TRANSITION_INVALID'
+);
+
+update public.verified_access_network_appeals
+set status = 'UNDER_REVIEW'
+where id = 'dddddddd-1c1c-4000-8000-000000000001';
+
+select pg_temp.expect_error(
+  $$update public.verified_access_network_appeals set status = 'OPEN' where id = 'dddddddd-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'appeal cannot return to open',
+  'NETWORK_APPEAL_STATUS_TRANSITION_INVALID'
+);
+
+select pg_temp.expect_error(
+  $$select public.verified_access_create_policy_draft('11111111-1c1c-4000-8000-000000000001', '{"status":"ACTIVE"}'::jsonb, 'phase-1c-actor')$$,
+  '22023',
+  'policy payload cannot set status',
+  'POLICY_PAYLOAD_SERVER_CONTROLLED_KEY'
+);
+
+select pg_temp.expect_error(
+  $$select public.verified_access_create_policy_draft('11111111-1c1c-4000-8000-000000000001', '{"network_signal_rules":{"effect":"AUTO_DENY_NETWORK"},"network_signal_mode":"EVALUATE_ONLY","network_approval_reference":"NET-1"}'::jsonb, 'phase-1c-actor')$$,
+  '23514',
+  'AUTO_DENY_NETWORK rejected by policy invariant',
+  null
+);
+
+select public.verified_access_create_policy_draft(
+  '11111111-1c1c-4000-8000-000000000001',
+  '{
+    "visitor_identity_mode":"REQUIRED",
+    "service_identity_mode":"DISABLED",
+    "privacy_approval_reference":"PRIV-1C",
+    "network_signal_mode":"EVALUATE_ONLY",
+    "network_approval_reference":"NET-1C",
+    "network_signal_rules":{"min_severity":"HIGH","effects":["REVALIDATE_IDENTITY"]},
+    "max_visitor_participants": 5
+  }'::jsonb,
+  'phase-1c-actor',
+  null,
+  'phase-1c-create-draft'
+) as created_policy_id
+\gset
+
+select public.verified_access_create_policy_draft(
+  '11111111-1c1c-4000-8000-000000000001',
+  '{"visitor_identity_mode":"REQUIRED","privacy_approval_reference":"PRIV-1C"}'::jsonb,
+  'phase-1c-actor',
+  null,
+  'phase-1c-create-draft'
+) as repeated_policy_id
+\gset
+
+select pg_temp.assert_true(
+  :'created_policy_id'::uuid = :'repeated_policy_id'::uuid,
+  'create draft idempotency returned the original policy'
+);
+
+select pg_temp.expect_error(
+  format($$update public.verified_access_policies set status = 'ACTIVE' where id = %L$$, :'created_policy_id'),
+  'P0001',
+  'direct draft activation blocked',
+  'POLICY_STATUS_TRANSITION_INVALID'
+);
+
+select public.verified_access_activate_policy(
+  '11111111-1c1c-4000-8000-000000000001',
+  :'created_policy_id',
+  'phase-1c-approver',
+  'APPROVAL-1C',
+  'phase-1c-activate'
+) as activated_policy_id
+\gset
+
+do $$
+declare
+  v_active_count integer;
+  v_previous_status text;
+begin
+  select count(*)
+    into v_active_count
+  from public.verified_access_policies
+  where condominium_id = '11111111-1c1c-4000-8000-000000000001'
+    and status = 'ACTIVE';
+
+  if v_active_count <> 1 then
+    raise exception 'expected exactly one active policy, got %', v_active_count;
+  end if;
+
+  select status
+    into v_previous_status
+  from public.verified_access_policies
+  where id = '44444444-1c1c-4000-8000-000000000001';
+
+  if v_previous_status <> 'RETIRED' then
+    raise exception 'previous active policy was not retired';
+  end if;
+end $$;
+
+select pg_temp.expect_error(
+  $$update public.verified_access_policies set max_visitor_participants = 8 where id = '44444444-1c1c-4000-8000-000000000001'$$,
+  'P0001',
+  'retired policy immutable',
+  'POLICY_RETIRED_IMMUTABLE'
+);
+
+select pg_temp.expect_error(
+  format($$select public.verified_access_retire_policy('11111111-1c1c-4000-8000-000000000001', %L::uuid, 'phase-1c-actor', 'RETIRE_ACTIVE')$$, :'created_policy_id'),
+  'P0001',
+  'active policy cannot be retired directly',
+  'POLICY_ACTIVE_REPLACEMENT_REQUIRED'
+);
+
+select public.verified_access_create_policy_draft(
+  '11111111-1c1c-4000-8000-000000000001',
+  '{}'::jsonb,
+  'phase-1c-actor',
+  :'created_policy_id',
+  'phase-1c-create-retire-draft'
+) as draft_to_retire_id
+\gset
+
+select public.verified_access_retire_policy(
+  '11111111-1c1c-4000-8000-000000000001',
+  :'draft_to_retire_id',
+  'phase-1c-actor',
+  'DRAFT_SUPERSEDED',
+  'phase-1c-retire-draft'
+) as retired_draft_id
+\gset
+
+do $$
+declare
+  v_audit_count integer;
+  v_outbox_count integer;
+begin
+  select count(*)
+    into v_audit_count
+  from public.verified_access_audit_events
+  where condominium_id = '11111111-1c1c-4000-8000-000000000001'
+    and event_type in ('POLICY_DRAFT_CREATED', 'POLICY_ACTIVATED', 'POLICY_DRAFT_RETIRED');
+
+  if v_audit_count < 4 then
+    raise exception 'expected policy audit events, got %', v_audit_count;
+  end if;
+
+  select count(*)
+    into v_outbox_count
+  from public.verified_access_outbox_events
+  where condominium_id = '11111111-1c1c-4000-8000-000000000001'
+    and event_type in ('POLICY_DRAFT_CREATED', 'POLICY_ACTIVATED', 'POLICY_DRAFT_RETIRED');
+
+  if v_outbox_count < 4 then
+    raise exception 'expected policy outbox events, got %', v_outbox_count;
+  end if;
+end $$;
+
+select pg_temp.expect_error(
+  $$select public.verified_access_write_audit_event('11111111-1c1c-4000-8000-000000000001', 'SERVICE_ROLE', 'phase-1c-actor', 'POLICY', '44444444-1c1c-4000-8000-000000000001', 'BAD', 'BAD', null, '{"cpf":"123"}'::jsonb)$$,
+  '22023',
+  'audit helper rejects PII aliases',
+  'AUDIT_PAYLOAD_FORBIDDEN_PII_ALIAS'
+);
+
+do $$
+begin
+  if exists (
+    select 1
+    from public.condominium_features
+    where feature_key in (
+        'VERIFIED_ACCESS',
+        'VERIFIED_ACCESS_BACKGROUND_CHECK',
+        'VERIFIED_ACCESS_NETWORK_IDENTITY',
+        'VERIFIED_ACCESS_NETWORK_SIGNALS',
+        'VERIFIED_ACCESS_NETWORK_HOLD'
+      )
+      and enabled is true
+  ) then
+    raise exception 'verified access feature flags must remain disabled';
+  end if;
+end $$;
+
+rollback;

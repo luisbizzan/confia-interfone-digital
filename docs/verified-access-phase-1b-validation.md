@@ -4,11 +4,12 @@ Data: 2026-07-16
 
 ## Estado Git
 
-- Branch: `agent/verified-access-phase-1b`.
-- Base: `origin/main` em `84077aa18731f83d6e8cfa505b7d10dec2b89026`.
-- Draft PR: `https://github.com/luisbizzan/confia-interfone-digital/pull/3`.
-- SHA validado no Gate 1B-FINAL REVIEW antes desta atualizacao documental:
-  `71d9929e46e12c95e328f2273a32259ed1ccb26b`.
+- Branch de implementacao: `agent/verified-access-phase-1b`.
+- PR: `https://github.com/luisbizzan/confia-interfone-digital/pull/3`.
+- Squash merge em `origin/main`:
+  `957b01351f412ad75e353e99643cbe99446f9bff`.
+- Head validado antes do merge:
+  `cfe4b227ec79c521d060c5dc7499e78e5cb5d45a`.
 
 ## Escopo Implementado
 
@@ -29,7 +30,7 @@ Data: 2026-07-16
 | 1B-FINAL-01 links | Corrigido e validado | `link_status` aceita somente `ACTIVE`, `DISPUTED`, `UNLINKED`; `link_reason` aceita somente `IDENTITY_VERIFIED`, `MANUAL_VERIFIED`, `IDENTIFIER_ROTATION`, `SUBJECT_MERGE`, `CORRECTION`; regras de `unlinked_at` cobertas |
 | 1B-FINAL-02 appeals | Corrigido e validado | FK composta `(signal_id, network_subject_id)` para signals; appeal sem signal permitido |
 | 1B-FINAL-03 condominium report | Corrigido e validado | trigger `verified_access_network_cases_validate_source_subject` valida participant, identity profile e link `ACTIVE`/`DISPUTED` do mesmo subject |
-| 1B-FINAL-04 docs/PR | Parcial | README, ROADMAP e CURRENT_TASK atualizados; PR body bloqueado por permissao da GitHub App, fallback manual requerido |
+| 1B-FINAL-04 docs/PR | Corrigido | PR body atualizado manualmente antes do merge; README, ROADMAP e CURRENT_TASK registrados no estado pós-merge |
 
 ## Migrations da Fase 1B
 
@@ -63,9 +64,9 @@ Nenhuma migration do Acesso Verificado foi aplicada remotamente.
 
 ### Phase 1B
 
-- Run: `29531335271`.
-- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29531335271`.
-- SHA: `71d9929e46e12c95e328f2273a32259ed1ccb26b`.
+- Run final pré-merge: `29531896729`.
+- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29531896729`.
+- SHA: `cfe4b227ec79c521d060c5dc7499e78e5cb5d45a`.
 - `database`: success.
 - `admin-web`: success.
 
@@ -85,9 +86,9 @@ Steps de banco validados:
 
 ### Phase 1A
 
-- Run: `29531335267`.
-- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29531335267`.
-- SHA: `71d9929e46e12c95e328f2273a32259ed1ccb26b`.
+- Run final pré-merge: `29531896626`.
+- URL: `https://github.com/luisbizzan/confia-interfone-digital/actions/runs/29531896626`.
+- SHA: `cfe4b227ec79c521d060c5dc7499e78e5cb5d45a`.
 - `database`: success.
 - `admin-web`: success.
 - Rollback/reaplicacao/smokes da Fase 1A: success.
@@ -96,6 +97,8 @@ Steps de banco validados:
 
 - Status GitHub: success.
 - Ambiente identificado pelo deployment/status: Preview.
+- Deployment pós-merge em `main`: `5488471803`.
+- Ambiente Vercel identificado: `Production`.
 
 ## Validacoes Locais
 
@@ -123,4 +126,4 @@ Remove triggers, funcoes, tabelas e flags da Fase 1B. Preserva Fase 1A,
 - Nenhuma alteracao em `persons`.
 - Nenhuma alteracao no app Expo.
 - Nenhum deploy manual.
-- Nenhum merge.
+- Merge por squash realizado no PR #3.
