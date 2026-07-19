@@ -7,8 +7,8 @@ Atualizado em 16 de julho de 2026.
 | Fase 0 — descoberta | Concluída | stack, tenant e módulos mapeados |
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
-| Fase 1C — invariantes e operações restritas | Autorizada / aguardando execução | `execution/CURRENT_TASK.md`; `phases/PHASE_1C.md` |
-| Fase 1D — contratos e providers fake | Não iniciada | depende das portas aprovadas |
+| Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
+| Fase 1D — contratos e providers fake | Não iniciada / não autorizada | aguarda contrato versionado |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
@@ -64,20 +64,18 @@ Não foi criado:
 
 ## Fase 1C
 
-A Fase 1C está autorizada para execução pelo contrato versionado:
+A Fase 1C foi mergeada na `main` pelo squash commit
+`f2f5296882df158481e44ea604a60b4e5bda2fce`.
 
-```text
-docs/product/verified-access/execution/CURRENT_TASK.md
-```
-
-O plano de referência permanece em:
+O plano e a evidência permanecem em:
 
 ```text
 docs/product/verified-access/phases/PHASE_1C.md
+docs/verified-access-phase-1c-validation.md
 ```
 
-A execução deve respeitar integralmente o contrato atual. A Fase 1D permanece
-não iniciada.
+As migrations 1A/1B/1C permanecem somente no repositório e não foram aplicadas
+remotamente. As features permanecem desligadas. A Fase 1D não foi autorizada.
 
 ## Migration drift
 
