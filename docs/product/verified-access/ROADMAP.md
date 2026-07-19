@@ -8,7 +8,7 @@ Atualizado em 19 de julho de 2026.
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
-| Fase 1D — contratos e providers fake | Planejada / revisão documental final / não autorizada | plano documental em `phases/PHASE_1D.md`; aguarda contrato versionado |
+| Fase 1D — contratos e providers fake | Autorizada / aguardando execução | contrato `VA-1D-PROVIDER-CONTRACTS-AND-FAKES` em `execution/CURRENT_TASK.md` |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
