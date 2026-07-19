@@ -10,7 +10,7 @@ implementação.
 IMPLEMENTATION`. Nenhuma interface, fake, adapter, Edge Function, migration ou
 teste técnico é criado por este plano.
 
-Stage: `Planejada / em revisão / não autorizada`.
+Stage: `Planejada / revisão documental final / não autorizada`.
 
 ## 2. Objetivo
 
@@ -58,12 +58,18 @@ type CorrelationId = string;
 type IdempotencyKey = string;
 type IsoTimestamp = string;
 
+type ProviderInputFingerprint = {
+  version: 1;
+  value: string;
+};
+
 type ProviderContext = {
   condominiumId: string;
   requestId: string;
   participantId: string;
   correlationId: CorrelationId;
   idempotencyKey: IdempotencyKey;
+  inputFingerprint: ProviderInputFingerprint;
   requestedAt: IsoTimestamp;
 };
 
@@ -90,6 +96,18 @@ type ProviderError = {
   metadataSanitized?: SanitizedMetadata;
 };
 
+type ProviderSuccess<T> = {
+  ok: true;
+  value: T;
+};
+
+type ProviderFailure = {
+  ok: false;
+  error: ProviderError;
+};
+
+type ProviderResult<T> = ProviderSuccess<T> | ProviderFailure;
+
 type ProviderReadContext = Pick<
   ProviderContext,
   "condominiumId" | "requestId" | "participantId" | "correlationId"
@@ -97,6 +115,7 @@ type ProviderReadContext = Pick<
 
 type ProviderMutationContext = ProviderReadContext & {
   idempotencyKey: IdempotencyKey;
+  inputFingerprint: ProviderInputFingerprint;
   requestedAt: IsoTimestamp;
 };
 
@@ -129,17 +148,20 @@ type IdentitySession = {
   metadataSanitized?: SanitizedMetadata;
 };
 
+type ProviderIdentityLevel =
+  | "UNVERIFIED"
+  | "CONTACT_VERIFIED"
+  | "LIVENESS_VERIFIED"
+  | "IDENTITY_VERIFIED";
+
+type IdentityAssuranceLevel = ProviderIdentityLevel | "MANUAL_VERIFIED";
+
 type IdentityResult = {
   providerSessionId: string;
   providerCode: string;
   correlationId: CorrelationId;
   status: "VERIFIED" | "INCONCLUSIVE" | "TECHNICAL_ERROR" | "EXPIRED";
-  level:
-    | "UNVERIFIED"
-    | "CONTACT_VERIFIED"
-    | "LIVENESS_VERIFIED"
-    | "IDENTITY_VERIFIED"
-    | "MANUAL_IDENTITY_VERIFIED";
+  level: ProviderIdentityLevel;
   documentStatus: "NOT_PERFORMED" | "VALID" | "INVALID" | "INCONCLUSIVE";
   livenessStatus: "NOT_PERFORMED" | "PASSED" | "FAILED" | "INCONCLUSIVE";
   faceMatchStatus: "NOT_PERFORMED" | "MATCH" | "NO_MATCH" | "INCONCLUSIVE";
@@ -245,8 +267,57 @@ Regras comuns:
   token, secret, URL assinada, payload bruto ou narrativa livre.
 - Erros esperados são dados estruturados. Mensagens livres de fornecedor não
   atravessam a porta nem são persistidas ou registradas em log.
-- Toda `Promise` rejeitada pelas portas usa `ProviderError`; as interfaces não
-  expõem exceção, status HTTP ou corpo de resposta específico de fornecedor.
+- Toda operação assíncrona de provider retorna `Promise<ProviderResult<T>>`.
+  Erros esperados são `ProviderFailure` e não são lançados. Exceção lançada fica
+  reservada a defeito de programação ou violação irrecuperável de invariante e
+  deve falhar o teste, nunca representar resposta normal de fornecedor.
+
+### 4.1 Fingerprint de input
+
+`ProviderInputFingerprint.value` é um digest opaco, versionado e não reversível
+da representação canônica do input idempotente. A representação usa JSON UTF-8
+com chaves em ordem lexicográfica, arrays ordenados quando a ordem não possuir
+semântica, ausência de propriedades `undefined` e timestamps normalizados em UTC
+no formato ISO 8601.
+
+Ficam sempre fora do fingerprint:
+
+- `correlationId`;
+- `requestedAt`;
+- `idempotencyKey`.
+
+PII nunca integra o JSON canônico em texto aberto. O orquestrador futuro deve
+fornecer referências opacas ou fingerprints previamente produzidos pelo
+componente autorizado. Provider e fake recebem `ProviderInputFingerprint` como
+dado opaco; o fake não lê PII nem calcula hash de CPF, documento, telefone,
+nome, destino de mensagem ou biometria.
+
+IDs fake são derivados deterministicamente de:
+
+```text
+providerCode + operation + condominiumId + idempotencyKey + inputFingerprint
+```
+
+A mesma chave no mesmo provider, operação e condomínio com fingerprint igual
+retorna o resultado lógico já armazenado. Fingerprint diferente retorna
+`ProviderFailure` com `error.code = "CONFLICT"`.
+
+### 4.2 Allowlists por operação
+
+Somente estes campos entram na representação canônica de cada operação:
+
+| Operação | Allowlist exata do fingerprint |
+|---|---|
+| `createSession` | `documentType`, `issuerCountry`, `requestedChecks` ordenados, `sensitiveInputReferenceFingerprint`, `callbackReference` opaca |
+| `cancelSession` | `providerSessionId` |
+| `requestCheck` | `verifiedIdentityReferenceFingerprint`, `scopeCodes` ordenados, `approvalReference`, `cutoffAt` em UTC |
+| `sendInvitation` | `channel`, `destinationReferenceFingerprint`, `templateCode`, `messagePayloadFingerprint`, `opaqueInvitationLinkReference` |
+| `sendStatusUpdate` | `channel`, `destinationReferenceFingerprint`, `templateCode`, `operationalStatusCode`, `messagePayloadFingerprint` |
+
+Os campos terminados em `Fingerprint` são produzidos pelo componente futuro
+autorizado e chegam opacos ao fake. Nenhum campo de contexto fora da allowlist,
+metadata livre, timestamp de tentativa ou dado pessoal aberto pode influenciar
+o fingerprint.
 
 ## 5. `IdentityProvider`
 
@@ -255,15 +326,17 @@ Regras comuns:
 ```ts
 interface IdentityProvider {
   capabilities(): IdentityCapabilities;
-  createSession(input: IdentitySessionInput): Promise<IdentitySession>;
+  createSession(
+    input: IdentitySessionInput,
+  ): Promise<ProviderResult<IdentitySession>>;
   getResult(
     providerSessionId: string,
     context: ProviderReadContext,
-  ): Promise<IdentityResult>;
+  ): Promise<ProviderResult<IdentityResult>>;
   cancelSession(
     providerSessionId: string,
     context: ProviderMutationContext,
-  ): Promise<IdentityCancellation>;
+  ): Promise<ProviderResult<IdentityCancellation>>;
 }
 ```
 
@@ -274,7 +347,7 @@ extensões futuras, fora da interface mínima autorizável da 1D.
 
 | Operação | Parâmetros | Retorno | Timeout planejado | Idempotência | Erros relevantes |
 |---|---|---|---|---|---|
-| `capabilities` | nenhum | suporte a documento, liveness, face 1:1, polling e cancelamento | síncrono, sem I/O | n/a | `INVALID_PROVIDER_RESPONSE` se configuração futura for inválida |
+| `capabilities` | nenhum | suporte a documento, liveness, face 1:1, polling e cancelamento | síncrono, sem I/O | n/a | nenhum; configuração inválida impede construir a instância |
 | `createSession` | `context`, tipo de documento permitido, operações solicitadas e referência opaca de callback futuro | ID opaco da sessão, status `PENDING`, expiração, provider code e metadata sanitizada | 15 s | obrigatória por `context.idempotencyKey` | input inválido, capability ausente, timeout, indisponibilidade, rate limit, autenticação, resposta inválida |
 | `getResult` | ID opaco da sessão e contexto de leitura | `IdentityResult` normalizado | 10 s | leitura naturalmente idempotente | not found, timeout, indisponibilidade, resposta inválida |
 | `cancelSession` | ID opaco da sessão, correlation ID e idempotency key | estado `CANCELLED` ou resultado terminal já existente | 10 s | obrigatória | not found, conflict, timeout, indisponibilidade |
@@ -339,12 +412,15 @@ revisão; não confirma fraude nem produz negativa automática.
 
 ```text
 status: VERIFIED | INCONCLUSIVE | TECHNICAL_ERROR | EXPIRED
-level: UNVERIFIED | CONTACT_VERIFIED | LIVENESS_VERIFIED |
-       IDENTITY_VERIFIED | MANUAL_IDENTITY_VERIFIED
+provider level: UNVERIFIED | CONTACT_VERIFIED | LIVENESS_VERIFIED |
+                IDENTITY_VERIFIED
+domain-only future level: MANUAL_VERIFIED
 ```
 
 O resultado mantém `documentStatus`, `livenessStatus` e `faceMatchStatus`
-separados. O fake não calcula elegibilidade nem cria vínculo de rede.
+separados. `MANUAL_VERIFIED` pertence exclusivamente a uma revisão humana
+futura, autorizada e auditada. Provider automático e fake não podem retornar
+esse nível. O fake não calcula elegibilidade nem cria vínculo de rede.
 
 ## 6. `BackgroundCheckProvider`
 
@@ -353,11 +429,13 @@ separados. O fake não calcula elegibilidade nem cria vínculo de rede.
 ```ts
 interface BackgroundCheckProvider {
   capabilities(): BackgroundCapabilities;
-  requestCheck(input: BackgroundCheckInput): Promise<BackgroundCheckRequest>;
+  requestCheck(
+    input: BackgroundCheckInput,
+  ): Promise<ProviderResult<BackgroundCheckRequest>>;
   getResult(
     providerRequestId: string,
     context: ProviderReadContext,
-  ): Promise<BackgroundCheckResult>;
+  ): Promise<ProviderResult<BackgroundCheckResult>>;
 }
 ```
 
@@ -365,7 +443,7 @@ interface BackgroundCheckProvider {
 
 | Operação | Parâmetros | Retorno | Timeout planejado | Idempotência | Erros relevantes |
 |---|---|---|---|---|---|
-| `capabilities` | nenhum | fontes/cobertura abstratas, polling e limites suportados | síncrono, sem I/O | n/a | configuração futura inválida |
+| `capabilities` | nenhum | fontes/cobertura abstratas, polling e limites suportados | síncrono, sem I/O | n/a | nenhum; configuração inválida impede construir a instância |
 | `requestCheck` | contexto, referência efêmera de identidade verificada, escopo autorizado, approval reference e data de corte | ID opaco, `PENDING`, timestamps e metadata sanitizada | 20 s | obrigatória | input inválido, unsupported, timeout, indisponibilidade, rate limit, autenticação, resposta inválida |
 | `getResult` | ID opaco e contexto de leitura | resultado normalizado | 10 s | leitura naturalmente idempotente | not found, timeout, indisponibilidade, resposta inválida |
 
@@ -398,12 +476,16 @@ EXPIRED
 
 ```ts
 interface MessagingProvider {
-  sendInvitation(input: InvitationMessageInput): Promise<MessageDelivery>;
-  sendStatusUpdate(input: StatusMessageInput): Promise<MessageDelivery>;
+  sendInvitation(
+    input: InvitationMessageInput,
+  ): Promise<ProviderResult<MessageDelivery>>;
+  sendStatusUpdate(
+    input: StatusMessageInput,
+  ): Promise<ProviderResult<MessageDelivery>>;
   getDeliveryStatus(
     providerMessageId: string,
     context: ProviderReadContext,
-  ): Promise<MessageDeliveryStatus>;
+  ): Promise<ProviderResult<MessageDeliveryStatus>>;
 }
 ```
 
@@ -460,8 +542,55 @@ scenario code sintético fornecido pelo teste.
 
 Configuração futura mínima: scenario, latência simulada, número de falhas antes
 do sucesso e timestamps do relógio injetável. Não haverá aleatoriedade. Todos os
-IDs fake serão derivados deterministicamente da idempotency key e do scenario,
-sem incorporar PII.
+IDs fake seguem a derivação definida na seção 4.1, sem incorporar PII.
+
+### 8.4 Estado, store e relógio dos fakes
+
+```ts
+type FakeProviderStoreKey = {
+  providerCode: string;
+  operation: string;
+  condominiumId: string;
+  idempotencyKey: IdempotencyKey;
+};
+
+type FakeProviderStoreEntry<T> = {
+  inputFingerprint: ProviderInputFingerprint;
+  result: ProviderResult<T>;
+  storedAt: IsoTimestamp;
+};
+
+interface FakeProviderStore {
+  get<T>(key: FakeProviderStoreKey): FakeProviderStoreEntry<T> | undefined;
+  put<T>(
+    key: FakeProviderStoreKey,
+    entry: FakeProviderStoreEntry<T>,
+  ): "STORED" | "LIMIT_REACHED";
+  clear(): void;
+}
+
+interface Clock {
+  now(): Date;
+  sleep(ms: number): Promise<void>;
+}
+```
+
+- Estado é sempre por instância e sem estado global; não existe singleton, cache
+  estático, variável global mutável ou registro compartilhado entre testes.
+- O storage in-memory é injetado pelo chamador e particionado por condomínio,
+  provider e operação. A chave de idempotência nunca atravessa essas partições.
+- Cada instância recebe seu próprio `FakeProviderStore` por padrão. Compartilhar
+  store exige opção explícita do teste e não altera a partição lógica.
+- `clear()` fornece cleanup determinístico e deve ser executado no teardown,
+  inclusive quando o teste falhar.
+- Testes paralelos usam stores e clocks distintos, sem interferência.
+- O store não usa filesystem, Supabase, banco ou rede.
+- A implementação futura deve exigir limite positivo configurável de registros;
+  ao atingir o limite, `put` retorna `LIMIT_REACHED` sem lançar erro esperado ou
+  descartar entrada silenciosamente. A porta converte esse estado em
+  `ProviderFailure` estruturado.
+- O clock fake avança tempo virtual em `sleep(ms)` e nunca espera tempo real.
+  Valores negativos ou não finitos são defeitos de input de teste.
 
 ## 9. Segurança e privacidade
 
@@ -474,6 +603,7 @@ sem incorporar PII.
   pública.
 - Não existe busca facial 1:N, galeria global ou busca de pessoa na rede.
 - Nenhum resultado produz `AUTO_DENY_NETWORK`, `GLOBAL_DENIED` ou blacklist.
+- `MANUAL_VERIFIED` não pode ser produzido por provider automático nem fake.
 - Fakes usam somente dados sintéticos versionados e não podem ser selecionados
   por identificador civil real.
 - Metadata e logs usam allowlist, não remoção por blacklist.
@@ -535,6 +665,35 @@ domínio/orquestrador futuro
 - Nenhum adapter real, SDK, fixture de sandbox ou chamada externa integra esta
   etapa documental.
 
+### 12.1 Layout futuro autorizável
+
+Quando houver contrato executável, os arquivos planejados ficarão em:
+
+```text
+supabase/functions/_shared/verified-access/providers/
+├── contracts.ts
+├── result.ts
+├── clock.ts
+├── identity-provider.ts
+├── background-check-provider.ts
+├── messaging-provider.ts
+├── fake/
+│   ├── fake-provider-store.ts
+│   ├── fake-identity-provider.ts
+│   ├── fake-background-check-provider.ts
+│   ├── fake-messaging-provider.ts
+│   └── scenarios.ts
+└── tests/
+    ├── provider-result.test.ts
+    ├── provider-contracts.test.ts
+    ├── fake-identity-provider.test.ts
+    ├── fake-background-check-provider.test.ts
+    └── fake-messaging-provider.test.ts
+```
+
+Esse layout é planejamento. Nenhum desses paths ou arquivos é criado neste
+gate documental.
+
 ## 13. Configuração e falha operacional
 
 - Todas as feature flags permanecem desligadas.
@@ -548,8 +707,21 @@ domínio/orquestrador futuro
 - Falhar tecnicamente fechado não significa negar acesso. O domínio futuro
   mantém o fluxo pendente ou em revisão conforme policy e nunca produz negativa
   automática.
-- Retry deve respeitar `retryable`, limite configurado, backoff determinístico
-  nos testes e a mesma idempotency key.
+
+### 13.1 Ownership de tentativa, timeout e retry
+
+- Cada chamada de uma porta representa exatamente uma tentativa.
+- Provider e fake não fazem retry, backoff ou jitter internamente.
+- Timeout limita uma tentativa e retorna `ProviderFailure` com `TIMEOUT`; não
+  dispara nova tentativa dentro da porta.
+- Retry, backoff, jitter e limite de tentativas pertencem exclusivamente ao
+  futuro orquestrador.
+- O orquestrador reutiliza a mesma idempotency key e o mesmo input fingerprint
+  em todas as tentativas da mesma operação lógica.
+- `retryAfterMs` é somente recomendação do provider; não agenda nem obriga retry.
+- Erro com `retryable = false` não é repetido automaticamente.
+- Falha técnica esgotada permanece técnica ou exige revisão. Nunca é convertida
+  em fraude, case, signal ou negativa de acesso.
 
 ## 14. Observabilidade planejada
 
@@ -576,6 +748,9 @@ tabelas.
 ### 15.1 Contrato
 
 - As três implementações fake satisfazem exatamente as interfaces.
+- `ProviderSuccess<T>` e `ProviderFailure` são discriminados por `ok`.
+- Toda operação assíncrona retorna `ProviderResult`; nenhum erro esperado é
+  lançado.
 - DTOs e códigos de fornecedores não vazam para tipos normalizados.
 - Campos obrigatórios, tipos, reason codes e timestamps são validados.
 - Correlation ID atravessa sucesso e erro.
@@ -585,6 +760,7 @@ tabelas.
 
 - Cada scenario code retorna sempre os mesmos IDs, estados e timestamps para a
   mesma entrada e relógio.
+- `MANUAL_VERIFIED` não é retornado por provider automático nem fake.
 - Não há rede, Supabase, filesystem, secret, aleatoriedade ou dado real.
 - Liveness isolado não produz `IDENTITY_VERIFIED`.
 - Documento inválido e face sem match não confirmam fraude.
@@ -593,14 +769,21 @@ tabelas.
 ### 15.3 Timeout, retry e indisponibilidade
 
 - Timeout respeita o limite de cada operação.
-- Erro retryable usa a mesma idempotency key e backoff controlado.
+- Uma chamada produz uma única tentativa; provider e fake não repetem
+  internamente.
+- Harness de orquestrador prova retry com a mesma idempotency key e fingerprint.
+- Backoff, jitter e limite são exercitados somente no teste do orquestrador.
+- Clock fake executa timeout e backoff com zero espera de tempo real.
 - Limite de retry encerra em resultado técnico/revisão, sem negativa.
 - Provider indisponível não cria case, signal ou elegibilidade.
 
 ### 15.4 Idempotência
 
 - Mesma chave e mesmo input retornam o mesmo ID e resultado lógico.
-- Mesma chave e input diferente retornam `CONFLICT`.
+- Fingerprint canônico permanece estável apesar da ordem das chaves JSON e da
+  normalização equivalente de timestamps UTC.
+- Mesma chave e fingerprint diferente retornam `ProviderFailure` com
+  `CONFLICT`.
 - Retry não duplica sessão, consulta ou mensagem.
 - Leituras repetidas são estáveis com relógio congelado.
 
@@ -611,7 +794,12 @@ tabelas.
   snapshot ou relatório de teste.
 - Contexto de tenant A não recupera resultado criado para tenant B.
 - IDs e idempotency keys não permitem colisão cross-tenant.
+- Stores distintos isolam instâncias e não existe estado global.
+- `clear()` remove deterministicamente todos os registros da instância.
+- Testes paralelos com stores/clocks próprios não interferem entre si.
+- Limite de registros é aplicado deterministicamente.
 - Mensagem não contém dado sensível ou resultado de análise.
+- Fingerprint e IDs fake não contêm PII; o fake não calcula hash de PII.
 
 ### 15.6 Preservação do domínio
 
