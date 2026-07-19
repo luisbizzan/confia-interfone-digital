@@ -1,6 +1,6 @@
 # Roadmap — Acesso Verificado
 
-Atualizado em 16 de julho de 2026.
+Atualizado em 19 de julho de 2026.
 
 | Fase | Estado | Evidência/Gate |
 |---|---|---|
@@ -8,7 +8,7 @@ Atualizado em 16 de julho de 2026.
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
-| Fase 1D — contratos e providers fake | Não iniciada / não autorizada | aguarda contrato versionado |
+| Fase 1D — contratos e providers fake | Planejada / em revisão / não autorizada | plano documental em `phases/PHASE_1D.md`; aguarda contrato versionado |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
@@ -75,7 +75,8 @@ docs/verified-access-phase-1c-validation.md
 ```
 
 As migrations 1A/1B/1C permanecem somente no repositório e não foram aplicadas
-remotamente. As features permanecem desligadas. A Fase 1D não foi autorizada.
+remotamente. As features permanecem desligadas. O plano documental da Fase 1D
+está em revisão e não autoriza implementação.
 
 ## Migration drift
 

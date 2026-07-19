@@ -11,6 +11,7 @@ Este diretório é a fonte de verdade de produto, domínio, segurança e execuç
 | [`execution/CURRENT_TASK.md`](execution/CURRENT_TASK.md) | Contrato exato da execução autorizada |
 | [`phases/PHASE_1B.md`](phases/PHASE_1B.md) | Escopo e critérios da fase atual |
 | [`phases/PHASE_1C.md`](phases/PHASE_1C.md) | Plano e escopo entregue da Fase 1C |
+| [`phases/PHASE_1D.md`](phases/PHASE_1D.md) | Plano dos contratos e providers fake da Fase 1D |
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Especificação funcional e técnica completa |
 | [`SECURITY_AND_PRIVACY.md`](SECURITY_AND_PRIVACY.md) | Segurança, LGPD, retenção, revisão e contestação |
 | [`INTEGRATIONS.md`](INTEGRATIONS.md) | Estratégia de providers e integrações |
@@ -35,7 +36,7 @@ DECISIONS.md
 - Commit da Fase 1B: `957b01351f412ad75e353e99643cbe99446f9bff`.
 - Fase 1C — invariantes, policies, audit e outbox: mergeada na `main`.
 - Commit da Fase 1C: `f2f5296882df158481e44ea604a60b4e5bda2fce`.
-- Fase 1D — não autorizada; aguarda contrato versionado futuro.
+- Fase 1D — planejada, em revisão e não autorizada para implementação.
 - Nenhuma migration do Acesso Verificado foi aplicada ao Supabase remoto.
 - Todas as features permanecem desligadas.
 - O deploy Vercel do merge é independente das migrations Supabase.
