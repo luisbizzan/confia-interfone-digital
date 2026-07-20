@@ -2,6 +2,7 @@ import { VirtualClock } from "../clock.ts";
 import {
   createProviderInputFingerprint,
   type IdentityResult,
+  type IdentitySession,
   type IdentitySessionInput,
   type ProviderContext,
   type ProviderInputFingerprint,
@@ -68,6 +69,32 @@ Deno.test("liveness evidence alone never verifies identity", async () => {
     );
     assert(result.level !== "IDENTITY_VERIFIED");
   }
+});
+
+Deno.test("identity success honors a liveness-only request", async () => {
+  const provider = new FakeIdentityProvider({ scenario: "IDENTITY_SUCCESS" });
+  const session = mustSuccess(
+    await provider.createSession(
+      await identityInput(
+        "liveness-only",
+        "condominium-identity",
+        ["LIVENESS"],
+      ),
+    ),
+  );
+  const result = mustSuccess(
+    await provider.getResult(session.providerSessionId, {
+      condominiumId: "condominium-identity",
+      requestId: "request-identity",
+      participantId: "participant-identity",
+      correlationId: "liveness-only-result",
+    }),
+  );
+  assertEquals(result.documentStatus, "NOT_PERFORMED");
+  assertEquals(result.livenessStatus, "PASSED");
+  assertEquals(result.faceMatchStatus, "NOT_PERFORMED");
+  assertEquals(result.level, "LIVENESS_VERIFIED");
+  assert(result.level !== "IDENTITY_VERIFIED");
 });
 
 Deno.test("identity idempotency detects fingerprint conflicts", async () => {
@@ -235,30 +262,101 @@ Deno.test("identity cancellation is idempotent and tenant isolated", async () =>
   );
 });
 
+Deno.test("identity failuresBeforeSuccess exposes one attempt per call", async () => {
+  const provider = new FakeIdentityProvider({
+    scenario: "IDENTITY_SUCCESS",
+    failuresBeforeSuccess: 2,
+  });
+  const input = await identityInput("identity-transient-sequence");
+  const first = await provider.createSession(input);
+  assertFailureCode(first, "UNAVAILABLE");
+  assert(!first.ok);
+  assertEquals(first.error.metadataSanitized?.attemptNumber, 1);
+  assertFailureCode(
+    await provider.createSession({
+      ...input,
+      context: {
+        ...input.context,
+        inputFingerprint: { version: 1, value: "transient-conflict" },
+      },
+    }),
+    "CONFLICT",
+  );
+  const second = await provider.createSession(input);
+  assertFailureCode(second, "UNAVAILABLE");
+  assert(!second.ok);
+  assertEquals(second.error.metadataSanitized?.attemptNumber, 2);
+  const succeeded = mustSuccess(await provider.createSession(input));
+  const repeated = mustSuccess(await provider.createSession(input));
+  assertEquals(repeated.providerSessionId, succeeded.providerSessionId);
+  assertEquals(repeated.createdAt, succeeded.createdAt);
+});
+
+Deno.test("identity validates required input, timestamps, passport, and checks", async () => {
+  const base = await identityInput("identity-validation");
+  const cases: Array<
+    readonly [IdentitySessionInput, "INVALID_INPUT" | "UNSUPPORTED_CAPABILITY"]
+  > = [
+    [{ ...base, sensitiveInputReference: "" }, "INVALID_INPUT"],
+    [{ ...base, requestedChecks: [] }, "INVALID_INPUT"],
+    [{ ...base, requestedChecks: ["" as never] }, "INVALID_INPUT"],
+    [{
+      ...base,
+      context: { ...base.context, requestedAt: "not-a-timestamp" },
+    }, "INVALID_INPUT"],
+    [{
+      ...base,
+      context: { ...base.context, requestId: "" },
+    }, "INVALID_INPUT"],
+    [{
+      ...base,
+      documentType: "PASSPORT_WITH_ISSUER",
+      issuerCountry: undefined,
+    }, "INVALID_INPUT"],
+    [{
+      ...base,
+      requestedChecks: ["UNSUPPORTED_CHECK" as never],
+    }, "UNSUPPORTED_CAPABILITY"],
+  ];
+
+  for (const [input, code] of cases) {
+    let thrown = false;
+    let result: ProviderResult<IdentitySession> | undefined;
+    try {
+      result = await new FakeIdentityProvider({
+        scenario: "IDENTITY_SUCCESS",
+      }).createSession(input);
+    } catch {
+      thrown = true;
+    }
+    assert(!thrown, `${code} must be returned, not thrown`);
+    assert(result !== undefined);
+    assertFailureCode(result, code);
+  }
+});
+
 async function identityInput(
   idempotencyKey: string,
   condominiumId = "condominium-identity",
+  requestedChecks: readonly IdentitySessionInput["requestedChecks"][number][] =
+    [
+      "DOCUMENT_VERIFICATION",
+      "LIVENESS",
+      "FACE_MATCH_ONE_TO_ONE",
+    ],
 ): Promise<IdentitySessionInput> {
   const inputFingerprint = await createProviderInputFingerprint(
     "createSession",
     {
       documentType: "CPF",
-      requestedChecks: [
-        "DOCUMENT_VERIFICATION",
-        "LIVENESS",
-        "FACE_MATCH_ONE_TO_ONE",
-      ],
+      requestedChecks,
       sensitiveInputReferenceFingerprint: `opaque-${idempotencyKey}`,
     },
   );
   return {
     context: context(idempotencyKey, inputFingerprint, condominiumId),
     documentType: "CPF",
-    requestedChecks: [
-      "DOCUMENT_VERIFICATION",
-      "LIVENESS",
-      "FACE_MATCH_ONE_TO_ONE",
-    ],
+    requestedChecks,
     sensitiveInputReference: "synthetic-sensitive-reference",
   };
 }

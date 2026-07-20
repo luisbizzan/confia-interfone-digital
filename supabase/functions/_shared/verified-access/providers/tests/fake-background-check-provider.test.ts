@@ -105,6 +105,61 @@ Deno.test("background result lookup is tenant isolated", async () => {
   );
 });
 
+Deno.test("background failuresBeforeSuccess exposes one attempt per call", async () => {
+  const provider = new FakeBackgroundCheckProvider({
+    scenario: "BACKGROUND_SUCCESS",
+    failuresBeforeSuccess: 2,
+  });
+  const input = await backgroundInput("background-transient-sequence");
+  const first = await provider.requestCheck(input);
+  assertFailureCode(first, "UNAVAILABLE");
+  assert(!first.ok);
+  assertEquals(first.error.metadataSanitized?.attemptNumber, 1);
+  const second = await provider.requestCheck(input);
+  assertFailureCode(second, "UNAVAILABLE");
+  assert(!second.ok);
+  assertEquals(second.error.metadataSanitized?.attemptNumber, 2);
+  const succeeded = mustSuccess(await provider.requestCheck(input));
+  const repeated = mustSuccess(await provider.requestCheck(input));
+  assertEquals(repeated.providerRequestId, succeeded.providerRequestId);
+  assertEquals(repeated.requestedAt, succeeded.requestedAt);
+});
+
+Deno.test("background validates required input, timestamps, and scopes", async () => {
+  const base = await backgroundInput("background-validation");
+  const cases: Array<
+    readonly [
+      BackgroundCheckInput,
+      "INVALID_INPUT" | "UNSUPPORTED_CAPABILITY",
+    ]
+  > = [
+    [{ ...base, approvalReference: "" }, "INVALID_INPUT"],
+    [{ ...base, verifiedIdentityReference: "" }, "INVALID_INPUT"],
+    [{ ...base, cutoffAt: "not-a-timestamp" }, "INVALID_INPUT"],
+    [{
+      ...base,
+      context: { ...base.context, requestedAt: "not-a-timestamp" },
+    }, "INVALID_INPUT"],
+    [{ ...base, scopeCodes: [""] }, "INVALID_INPUT"],
+    [{ ...base, scopeCodes: ["UNSUPPORTED_SCOPE"] }, "UNSUPPORTED_CAPABILITY"],
+  ];
+
+  for (const [input, code] of cases) {
+    let thrown = false;
+    let result: ProviderResult<unknown> | undefined;
+    try {
+      result = await new FakeBackgroundCheckProvider({
+        scenario: "BACKGROUND_SUCCESS",
+      }).requestCheck(input);
+    } catch {
+      thrown = true;
+    }
+    assert(!thrown, `${code} must be returned, not thrown`);
+    assert(result !== undefined);
+    assertFailureCode(result, code);
+  }
+});
+
 async function backgroundInput(
   idempotencyKey: string,
 ): Promise<BackgroundCheckInput> {

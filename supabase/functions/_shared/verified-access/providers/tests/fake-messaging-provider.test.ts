@@ -110,6 +110,107 @@ Deno.test("message delivery lookup is tenant isolated", async () => {
   );
 });
 
+Deno.test("messaging failuresBeforeSuccess exposes one attempt per call", async () => {
+  const provider = new FakeMessagingProvider({
+    scenario: "MESSAGE_SUCCESS",
+    failuresBeforeSuccess: 2,
+  });
+  const input = await invitationInput("message-transient-sequence");
+  const first = await provider.sendInvitation(input);
+  assertFailureCode(first, "UNAVAILABLE");
+  assert(!first.ok);
+  assertEquals(first.error.metadataSanitized?.attemptNumber, 1);
+  const second = await provider.sendInvitation(input);
+  assertFailureCode(second, "UNAVAILABLE");
+  assert(!second.ok);
+  assertEquals(second.error.metadataSanitized?.attemptNumber, 2);
+  const succeeded = mustSuccess(await provider.sendInvitation(input));
+  const repeated = mustSuccess(await provider.sendInvitation(input));
+  assertEquals(repeated.providerMessageId, succeeded.providerMessageId);
+  assertEquals(repeated.acceptedAt, succeeded.acceptedAt);
+});
+
+Deno.test("messaging validates invitation and status inputs without throwing", async () => {
+  const invitation = await invitationInput("message-validation-invitation");
+  const status = await statusMessageInput("message-validation-status");
+  const provider = new FakeMessagingProvider({ scenario: "MESSAGE_SUCCESS" });
+  const cases: Array<
+    readonly [
+      () => Promise<ProviderResult<unknown>>,
+      "INVALID_INPUT" | "UNSUPPORTED_CAPABILITY",
+    ]
+  > = [
+    [() =>
+      provider.sendInvitation({
+        ...invitation,
+        ephemeralDestination: "",
+      }), "INVALID_INPUT"],
+    [
+      () => provider.sendInvitation({ ...invitation, templateCode: "" }),
+      "INVALID_INPUT",
+    ],
+    [() =>
+      provider.sendInvitation({
+        ...invitation,
+        condominiumDisplayName: "",
+      }), "INVALID_INPUT"],
+    [
+      () => provider.sendInvitation({ ...invitation, accessWindowLabel: "" }),
+      "INVALID_INPUT",
+    ],
+    [
+      () =>
+        provider.sendInvitation({ ...invitation, opaqueInvitationLink: "" }),
+      "INVALID_INPUT",
+    ],
+    [() =>
+      provider.sendInvitation({
+        ...invitation,
+        context: { ...invitation.context, requestedAt: "not-a-timestamp" },
+      }), "INVALID_INPUT"],
+    [() =>
+      provider.sendInvitation({
+        ...invitation,
+        channel: "UNSUPPORTED_CHANNEL" as never,
+      }), "UNSUPPORTED_CAPABILITY"],
+    [() =>
+      provider.sendInvitation({
+        ...invitation,
+        channel: "" as never,
+      }), "INVALID_INPUT"],
+    [
+      () => provider.sendStatusUpdate({ ...status, operationalStatusCode: "" }),
+      "INVALID_INPUT",
+    ],
+    [
+      () => provider.sendStatusUpdate({ ...status, templateCode: "" }),
+      "INVALID_INPUT",
+    ],
+    [
+      () => provider.sendStatusUpdate({ ...status, ephemeralDestination: "" }),
+      "INVALID_INPUT",
+    ],
+    [() =>
+      provider.sendStatusUpdate({
+        ...status,
+        channel: "UNSUPPORTED_CHANNEL" as never,
+      }), "UNSUPPORTED_CAPABILITY"],
+  ];
+
+  for (const [execute, code] of cases) {
+    let thrown = false;
+    let result: ProviderResult<unknown> | undefined;
+    try {
+      result = await execute();
+    } catch {
+      thrown = true;
+    }
+    assert(!thrown, `${code} must be returned, not thrown`);
+    assert(result !== undefined);
+    assertFailureCode(result, code);
+  }
+});
+
 async function invitationInput(
   idempotencyKey: string,
 ): Promise<InvitationMessageInput> {

@@ -5,6 +5,7 @@ import {
   deriveFakeIdentifier,
   type IdentityCancellation,
   type IdentityCapabilities,
+  type IdentityRequestedCheck,
   type IdentityResult,
   type IdentitySession,
   type IdentitySessionInput,
@@ -18,10 +19,11 @@ import {
   providerSuccess,
 } from "../result.ts";
 import {
+  beginIdempotentAttempt,
   type FakeProviderStore,
   InMemoryFakeProviderStore,
-  readIdempotentResult,
   storeIdempotentResult,
+  validateFailuresBeforeSuccess,
 } from "./fake-provider-store.ts";
 import type { IdentityScenario } from "./scenarios.ts";
 
@@ -31,6 +33,7 @@ export type FakeIdentityProviderOptions = Readonly<{
   store?: FakeProviderStore;
   clock?: Clock;
   latencyMs?: number;
+  failuresBeforeSuccess?: number;
   maxRecords?: number;
 }>;
 
@@ -40,6 +43,7 @@ export class FakeIdentityProvider implements IdentityProvider {
   readonly #store: FakeProviderStore;
   readonly #clock: Clock;
   readonly #latencyMs: number;
+  readonly #failuresBeforeSuccess: number;
 
   constructor(options: FakeIdentityProviderOptions) {
     this.#scenario = options.scenario;
@@ -48,6 +52,9 @@ export class FakeIdentityProvider implements IdentityProvider {
       new InMemoryFakeProviderStore(options.maxRecords ?? 1_000);
     this.#clock = options.clock ?? new VirtualClock("2026-01-01T00:00:00.000Z");
     this.#latencyMs = validateLatency(options.latencyMs ?? 0);
+    this.#failuresBeforeSuccess = validateFailuresBeforeSuccess(
+      options.failuresBeforeSuccess ?? 0,
+    );
   }
 
   capabilities(): IdentityCapabilities {
@@ -64,7 +71,7 @@ export class FakeIdentityProvider implements IdentityProvider {
     input: IdentitySessionInput,
   ): Promise<ProviderResult<IdentitySession>> {
     await this.#clock.sleep(this.#latencyMs);
-    const invalid = validateMutationContext(input.context, this.#providerCode);
+    const invalid = validateIdentitySessionInput(input, this.#providerCode);
     if (invalid) {
       return invalid;
     }
@@ -80,28 +87,22 @@ export class FakeIdentityProvider implements IdentityProvider {
       condominiumId: input.context.condominiumId,
       idempotencyKey: idempotencyScope,
     };
-    const stored = readIdempotentResult<IdentitySession>(
+    const attempt = beginIdempotentAttempt<IdentitySession>(
       this.#store,
       key,
       input.context.inputFingerprint,
+      this.#failuresBeforeSuccess,
+      this.#clock.now().toISOString(),
       input.context.correlationId,
       this.#providerCode,
     );
-    if (stored) {
-      return stored;
+    if (attempt.action === "RETURN") {
+      return attempt.result;
     }
 
     const scenarioFailure = this.#scenarioFailure(input.context.correlationId);
     if (scenarioFailure) {
-      return storeIdempotentResult(
-        this.#store,
-        key,
-        input.context.inputFingerprint,
-        scenarioFailure,
-        this.#clock.now().toISOString(),
-        input.context.correlationId,
-        this.#providerCode,
-      );
+      return scenarioFailure;
     }
 
     const createdAt = this.#clock.now();
@@ -120,7 +121,16 @@ export class FakeIdentityProvider implements IdentityProvider {
       correlationId: input.context.correlationId,
       createdAt: createdAt.toISOString(),
       expiresAt: new Date(createdAt.getTime() + 15 * 60_000).toISOString(),
-      metadataSanitized: { scenario: this.#scenario },
+      metadataSanitized: {
+        documentRequested: input.requestedChecks.includes(
+          "DOCUMENT_VERIFICATION",
+        ),
+        faceMatchOneToOneRequested: input.requestedChecks.includes(
+          "FACE_MATCH_ONE_TO_ONE",
+        ),
+        livenessRequested: input.requestedChecks.includes("LIVENESS"),
+        scenario: this.#scenario,
+      },
     });
     return storeIdempotentResult(
       this.#store,
@@ -138,6 +148,13 @@ export class FakeIdentityProvider implements IdentityProvider {
     context: ProviderReadContext,
   ): Promise<ProviderResult<IdentityResult>> {
     await this.#clock.sleep(this.#latencyMs);
+    const invalid = validateReadContext(context, this.#providerCode);
+    if (invalid) {
+      return invalid;
+    }
+    if (!isNonEmptyString(providerSessionId)) {
+      return invalidInput(context.correlationId, this.#providerCode);
+    }
     const idempotencyScope = parseFakeIdentifier(
       providerSessionId,
       "fake_identity",
@@ -178,6 +195,7 @@ export class FakeIdentityProvider implements IdentityProvider {
         this.#providerCode,
         context.correlationId,
         this.#clock.now(),
+        requestedChecksFromSession(session.result.value),
       ),
     );
   }
@@ -190,6 +208,9 @@ export class FakeIdentityProvider implements IdentityProvider {
     const invalid = validateMutationContext(context, this.#providerCode);
     if (invalid) {
       return invalid;
+    }
+    if (!isNonEmptyString(providerSessionId)) {
+      return invalidInput(context.correlationId, this.#providerCode);
     }
     const sessionScope = parseFakeIdentifier(
       providerSessionId,
@@ -232,15 +253,17 @@ export class FakeIdentityProvider implements IdentityProvider {
       condominiumId: context.condominiumId,
       idempotencyKey: cancellationScope,
     };
-    const stored = readIdempotentResult<IdentityCancellation>(
+    const attempt = beginIdempotentAttempt<IdentityCancellation>(
       this.#store,
       key,
       context.inputFingerprint,
+      this.#failuresBeforeSuccess,
+      this.#clock.now().toISOString(),
       context.correlationId,
       this.#providerCode,
     );
-    if (stored) {
-      return stored;
+    if (attempt.action === "RETURN") {
+      return attempt.result;
     }
     const occurredAt = this.#clock.now().toISOString();
     return storeIdempotentResult(
@@ -288,6 +311,7 @@ function identityResultForScenario(
   providerCode: string,
   correlationId: string,
   now: Date,
+  requestedChecks: readonly IdentityRequestedCheck[],
 ): IdentityResult {
   const common = {
     providerSessionId,
@@ -297,9 +321,10 @@ function identityResultForScenario(
     expiresAt: new Date(now.getTime() + 24 * 60 * 60_000).toISOString(),
     metadataSanitized: { scenario },
   } as const;
+  let result: IdentityResult;
   switch (scenario) {
     case "IDENTITY_SUCCESS":
-      return {
+      result = {
         ...common,
         status: "VERIFIED",
         level: "IDENTITY_VERIFIED",
@@ -308,8 +333,9 @@ function identityResultForScenario(
         faceMatchStatus: "MATCH",
         reasonCode: "IDENTITY_CHECKS_PASSED",
       };
+      break;
     case "IDENTITY_INCONCLUSIVE":
-      return {
+      result = {
         ...common,
         status: "INCONCLUSIVE",
         level: "UNVERIFIED",
@@ -318,8 +344,9 @@ function identityResultForScenario(
         faceMatchStatus: "INCONCLUSIVE",
         reasonCode: "IDENTITY_INCONCLUSIVE",
       };
+      break;
     case "DOCUMENT_INVALID_REVIEW":
-      return {
+      result = {
         ...common,
         status: "INCONCLUSIVE",
         level: "UNVERIFIED",
@@ -328,8 +355,9 @@ function identityResultForScenario(
         faceMatchStatus: "NOT_PERFORMED",
         reasonCode: "DOCUMENT_REVIEW_REQUIRED",
       };
+      break;
     case "LIVENESS_INCONCLUSIVE":
-      return {
+      result = {
         ...common,
         status: "INCONCLUSIVE",
         level: "UNVERIFIED",
@@ -338,8 +366,9 @@ function identityResultForScenario(
         faceMatchStatus: "NOT_PERFORMED",
         reasonCode: "LIVENESS_INCONCLUSIVE",
       };
+      break;
     case "LIVENESS_FAILED_REVIEW":
-      return {
+      result = {
         ...common,
         status: "INCONCLUSIVE",
         level: "UNVERIFIED",
@@ -348,8 +377,9 @@ function identityResultForScenario(
         faceMatchStatus: "NOT_PERFORMED",
         reasonCode: "LIVENESS_REVIEW_REQUIRED",
       };
+      break;
     case "FACE_NO_MATCH_REVIEW":
-      return {
+      result = {
         ...common,
         status: "INCONCLUSIVE",
         level: "LIVENESS_VERIFIED",
@@ -358,10 +388,94 @@ function identityResultForScenario(
         faceMatchStatus: "NO_MATCH",
         reasonCode: "FACE_MATCH_REVIEW_REQUIRED",
       };
+      break;
     case "IDENTITY_TIMEOUT":
     case "IDENTITY_PROVIDER_ERROR":
       throw new TypeError("Technical scenarios return ProviderFailure");
   }
+  return applyRequestedChecks(result, requestedChecks);
+}
+
+function applyRequestedChecks(
+  result: IdentityResult,
+  requestedChecks: readonly IdentityRequestedCheck[],
+): IdentityResult {
+  const requested = new Set(requestedChecks);
+  const documentStatus = requested.has("DOCUMENT_VERIFICATION")
+    ? result.documentStatus
+    : "NOT_PERFORMED";
+  const livenessStatus = requested.has("LIVENESS")
+    ? result.livenessStatus
+    : "NOT_PERFORMED";
+  const faceMatchStatus = requested.has("FACE_MATCH_ONE_TO_ONE")
+    ? result.faceMatchStatus
+    : "NOT_PERFORMED";
+  const level = documentStatus === "VALID" && livenessStatus === "PASSED" &&
+      faceMatchStatus === "MATCH"
+    ? "IDENTITY_VERIFIED"
+    : livenessStatus === "PASSED"
+    ? "LIVENESS_VERIFIED"
+    : "UNVERIFIED";
+  return {
+    ...result,
+    documentStatus,
+    faceMatchStatus,
+    level,
+    livenessStatus,
+  };
+}
+
+function requestedChecksFromSession(
+  session: IdentitySession,
+): IdentityRequestedCheck[] {
+  const metadata = session.metadataSanitized;
+  const checks: IdentityRequestedCheck[] = [];
+  if (metadata?.documentRequested === true) {
+    checks.push("DOCUMENT_VERIFICATION");
+  }
+  if (metadata?.livenessRequested === true) {
+    checks.push("LIVENESS");
+  }
+  if (metadata?.faceMatchOneToOneRequested === true) {
+    checks.push("FACE_MATCH_ONE_TO_ONE");
+  }
+  return checks;
+}
+
+function validateIdentitySessionInput(
+  input: IdentitySessionInput,
+  providerCode: string,
+): ProviderResult<never> | undefined {
+  const invalidContext = validateMutationContext(input.context, providerCode);
+  if (invalidContext) {
+    return invalidContext;
+  }
+  if (
+    !isNonEmptyString(input.sensitiveInputReference) ||
+    !isNonEmptyString(input.documentType) ||
+    !Array.isArray(input.requestedChecks) ||
+    input.requestedChecks.length === 0 ||
+    input.requestedChecks.some((check) => !isNonEmptyString(check)) ||
+    (input.callbackReference !== undefined &&
+      !isNonEmptyString(input.callbackReference)) ||
+    (input.documentType === "PASSPORT_WITH_ISSUER" &&
+      !isNonEmptyString(input.issuerCountry))
+  ) {
+    return invalidInput(input.context.correlationId, providerCode);
+  }
+  if (
+    !["CPF", "RNM", "PASSPORT_WITH_ISSUER"].includes(input.documentType) ||
+    input.requestedChecks.some((check) =>
+      ![
+        "DOCUMENT_VERIFICATION",
+        "LIVENESS",
+        "FACE_MATCH_ONE_TO_ONE",
+      ].includes(check)
+    )
+  ) {
+    return unsupportedCapability(input.context.correlationId, providerCode);
+  }
+  return undefined;
 }
 
 function validateMutationContext(
@@ -369,18 +483,62 @@ function validateMutationContext(
   providerCode: string,
 ): ProviderResult<never> | undefined {
   if (
-    !context.condominiumId || !context.requestId || !context.participantId ||
-    !context.correlationId || !context.idempotencyKey ||
-    context.inputFingerprint.version !== 1 || !context.inputFingerprint.value
+    validateReadContext(context, providerCode) ||
+    !isNonEmptyString(context.idempotencyKey) ||
+    context.inputFingerprint.version !== 1 ||
+    !isNonEmptyString(context.inputFingerprint.value) ||
+    !isValidTimestamp(context.requestedAt)
   ) {
-    return providerFailure({
-      code: "INVALID_INPUT",
-      retryable: false,
-      correlationId: context.correlationId,
-      providerCode,
-    });
+    return invalidInput(context.correlationId, providerCode);
   }
   return undefined;
+}
+
+function validateReadContext(
+  context: ProviderReadContext,
+  providerCode: string,
+): ProviderResult<never> | undefined {
+  if (
+    !isNonEmptyString(context.condominiumId) ||
+    !isNonEmptyString(context.requestId) ||
+    !isNonEmptyString(context.participantId) ||
+    !isNonEmptyString(context.correlationId)
+  ) {
+    return invalidInput(context.correlationId, providerCode);
+  }
+  return undefined;
+}
+
+function invalidInput(
+  correlationId: string,
+  providerCode: string,
+): ProviderResult<never> {
+  return providerFailure({
+    code: "INVALID_INPUT",
+    retryable: false,
+    correlationId,
+    providerCode,
+  });
+}
+
+function unsupportedCapability(
+  correlationId: string,
+  providerCode: string,
+): ProviderResult<never> {
+  return providerFailure({
+    code: "UNSUPPORTED_CAPABILITY",
+    retryable: false,
+    correlationId,
+    providerCode,
+  });
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidTimestamp(value: unknown): value is string {
+  return isNonEmptyString(value) && Number.isFinite(Date.parse(value));
 }
 
 function validateLatency(latencyMs: number): number {

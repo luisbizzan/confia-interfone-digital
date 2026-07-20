@@ -16,10 +16,11 @@ import {
   providerSuccess,
 } from "../result.ts";
 import {
+  beginIdempotentAttempt,
   type FakeProviderStore,
   InMemoryFakeProviderStore,
-  readIdempotentResult,
   storeIdempotentResult,
+  validateFailuresBeforeSuccess,
 } from "./fake-provider-store.ts";
 import type { BackgroundScenario } from "./scenarios.ts";
 
@@ -29,6 +30,7 @@ export type FakeBackgroundCheckProviderOptions = Readonly<{
   store?: FakeProviderStore;
   clock?: Clock;
   latencyMs?: number;
+  failuresBeforeSuccess?: number;
   maxRecords?: number;
 }>;
 
@@ -38,6 +40,7 @@ export class FakeBackgroundCheckProvider implements BackgroundCheckProvider {
   readonly #store: FakeProviderStore;
   readonly #clock: Clock;
   readonly #latencyMs: number;
+  readonly #failuresBeforeSuccess: number;
 
   constructor(options: FakeBackgroundCheckProviderOptions) {
     this.#scenario = options.scenario;
@@ -46,6 +49,9 @@ export class FakeBackgroundCheckProvider implements BackgroundCheckProvider {
       new InMemoryFakeProviderStore(options.maxRecords ?? 1_000);
     this.#clock = options.clock ?? new VirtualClock("2026-01-01T00:00:00.000Z");
     this.#latencyMs = validateLatency(options.latencyMs ?? 0);
+    this.#failuresBeforeSuccess = validateFailuresBeforeSuccess(
+      options.failuresBeforeSuccess ?? 0,
+    );
   }
 
   capabilities(): BackgroundCapabilities {
@@ -56,7 +62,11 @@ export class FakeBackgroundCheckProvider implements BackgroundCheckProvider {
     input: BackgroundCheckInput,
   ): Promise<ProviderResult<BackgroundCheckRequest>> {
     await this.#clock.sleep(this.#latencyMs);
-    const invalid = validateInput(input, this.#providerCode);
+    const invalid = validateInput(
+      input,
+      this.capabilities(),
+      this.#providerCode,
+    );
     if (invalid) {
       return invalid;
     }
@@ -72,27 +82,21 @@ export class FakeBackgroundCheckProvider implements BackgroundCheckProvider {
       condominiumId: input.context.condominiumId,
       idempotencyKey: idempotencyScope,
     };
-    const stored = readIdempotentResult<BackgroundCheckRequest>(
+    const attempt = beginIdempotentAttempt<BackgroundCheckRequest>(
       this.#store,
       key,
       input.context.inputFingerprint,
+      this.#failuresBeforeSuccess,
+      this.#clock.now().toISOString(),
       input.context.correlationId,
       this.#providerCode,
     );
-    if (stored) {
-      return stored;
+    if (attempt.action === "RETURN") {
+      return attempt.result;
     }
     const scenarioFailure = this.#scenarioFailure(input.context.correlationId);
     if (scenarioFailure) {
-      return storeIdempotentResult(
-        this.#store,
-        key,
-        input.context.inputFingerprint,
-        scenarioFailure,
-        this.#clock.now().toISOString(),
-        input.context.correlationId,
-        this.#providerCode,
-      );
+      return scenarioFailure;
     }
     const requestedAt = this.#clock.now().toISOString();
     const providerRequestId = await deriveFakeIdentifier(
@@ -126,6 +130,13 @@ export class FakeBackgroundCheckProvider implements BackgroundCheckProvider {
     context: ProviderReadContext,
   ): Promise<ProviderResult<BackgroundCheckResult>> {
     await this.#clock.sleep(this.#latencyMs);
+    const invalid = validateReadContext(context, this.#providerCode);
+    if (invalid) {
+      return invalid;
+    }
+    if (!isNonEmptyString(providerRequestId)) {
+      return invalidInput(context.correlationId, this.#providerCode);
+    }
     const idempotencyScope = parseFakeIdentifier(
       providerRequestId,
       "fake_background",
@@ -232,24 +243,91 @@ function backgroundReasonCode(scenario: BackgroundScenario): string {
 
 function validateInput(
   input: BackgroundCheckInput,
+  capabilities: BackgroundCapabilities,
   providerCode: string,
 ): ProviderResult<never> | undefined {
   const context = input.context;
   if (
-    !context.condominiumId || !context.requestId || !context.participantId ||
-    !context.correlationId || !context.idempotencyKey ||
-    context.inputFingerprint.version !== 1 || !context.inputFingerprint.value ||
-    !input.verifiedIdentityReference || !input.approvalReference ||
-    input.scopeCodes.length === 0
+    validateMutationContext(context, providerCode) ||
+    !isNonEmptyString(input.verifiedIdentityReference) ||
+    !isNonEmptyString(input.approvalReference) ||
+    !Array.isArray(input.scopeCodes) || input.scopeCodes.length === 0 ||
+    input.scopeCodes.some((scope) => !isNonEmptyString(scope)) ||
+    !isValidTimestamp(input.cutoffAt)
   ) {
-    return providerFailure({
-      code: "INVALID_INPUT",
-      retryable: false,
-      correlationId: context.correlationId,
-      providerCode,
-    });
+    return invalidInput(context.correlationId, providerCode);
+  }
+  if (
+    input.scopeCodes.some((scope) =>
+      !capabilities.coverageCodes.includes(scope)
+    )
+  ) {
+    return unsupportedCapability(context.correlationId, providerCode);
   }
   return undefined;
+}
+
+function validateMutationContext(
+  context: BackgroundCheckInput["context"],
+  providerCode: string,
+): ProviderResult<never> | undefined {
+  if (
+    validateReadContext(context, providerCode) ||
+    !isNonEmptyString(context.idempotencyKey) ||
+    context.inputFingerprint.version !== 1 ||
+    !isNonEmptyString(context.inputFingerprint.value) ||
+    !isValidTimestamp(context.requestedAt)
+  ) {
+    return invalidInput(context.correlationId, providerCode);
+  }
+  return undefined;
+}
+
+function validateReadContext(
+  context: ProviderReadContext,
+  providerCode: string,
+): ProviderResult<never> | undefined {
+  if (
+    !isNonEmptyString(context.condominiumId) ||
+    !isNonEmptyString(context.requestId) ||
+    !isNonEmptyString(context.participantId) ||
+    !isNonEmptyString(context.correlationId)
+  ) {
+    return invalidInput(context.correlationId, providerCode);
+  }
+  return undefined;
+}
+
+function invalidInput(
+  correlationId: string,
+  providerCode: string,
+): ProviderResult<never> {
+  return providerFailure({
+    code: "INVALID_INPUT",
+    retryable: false,
+    correlationId,
+    providerCode,
+  });
+}
+
+function unsupportedCapability(
+  correlationId: string,
+  providerCode: string,
+): ProviderResult<never> {
+  return providerFailure({
+    code: "UNSUPPORTED_CAPABILITY",
+    retryable: false,
+    correlationId,
+    providerCode,
+  });
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isValidTimestamp(value: unknown): value is string {
+  return isNonEmptyString(value) && Number.isFinite(Date.parse(value));
 }
 
 function validateLatency(latencyMs: number): number {
