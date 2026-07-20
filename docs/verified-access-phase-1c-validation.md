@@ -138,3 +138,20 @@ runtime roles. The synthetic role received SQLSTATE `42501` from create-policy,
 activate-policy, and audit-helper calls, was dropped, and the affected-image
 path recorded `SKIPPED_UPSTREAM_SUPABASE_POSTGRES_2112`. `pg_isready` reported
 the database accepting connections after the post-reapplication harness.
+
+## Merge
+
+- PR: `https://github.com/luisbizzan/confia-interfone-digital/pull/4`.
+- Final state: closed, merged, and not draft.
+- Squash commit: `f2f5296882df158481e44ea604a60b4e5bda2fce`.
+- Squash title: `feat(db): add verified access phase 1C invariants and policy RPCs`.
+- Merge timestamp: `2026-07-18T18:59:13Z`.
+- The squash tree matches the reviewed head
+  `b8ec11539fa772bdc8ad8af21e5b79a85926cbd4`.
+- Final gate runs: Phase 1C PR `29654007096`, Phase 1C push `29654005834`,
+  Phase 1A `29654007112`, and Phase 1B `29654007092`, all successful.
+- Post-merge Vercel changed from pending to Ready in the `Production`
+  environment for branch `main` and the squash commit.
+- No Supabase remote migration was executed; the checkout had no linked project
+  reference, so no remote command was attempted.
+- Verified Access feature flags remain disabled.

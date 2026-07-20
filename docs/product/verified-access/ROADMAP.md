@@ -1,14 +1,14 @@
 # Roadmap — Acesso Verificado
 
-Atualizado em 16 de julho de 2026.
+Atualizado em 20 de julho de 2026.
 
 | Fase | Estado | Evidência/Gate |
 |---|---|---|
 | Fase 0 — descoberta | Concluída | stack, tenant e módulos mapeados |
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
-| Fase 1C — invariantes e operações restritas | Autorizada / aguardando execução | `execution/CURRENT_TASK.md`; `phases/PHASE_1C.md` |
-| Fase 1D — contratos e providers fake | Não iniciada | depende das portas aprovadas |
+| Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
+| Fase 1D — contratos e providers fake | Implementada / validada / aguardando merge | PR draft #5, head `b3dcf005eb0438d6cad724de95eba2aa51d6f84b` |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
@@ -64,20 +64,33 @@ Não foi criado:
 
 ## Fase 1C
 
-A Fase 1C está autorizada para execução pelo contrato versionado:
+A Fase 1C foi mergeada na `main` pelo squash commit
+`f2f5296882df158481e44ea604a60b4e5bda2fce`.
 
-```text
-docs/product/verified-access/execution/CURRENT_TASK.md
-```
-
-O plano de referência permanece em:
+O plano e a evidência permanecem em:
 
 ```text
 docs/product/verified-access/phases/PHASE_1C.md
+docs/verified-access-phase-1c-validation.md
 ```
 
-A execução deve respeitar integralmente o contrato atual. A Fase 1D permanece
-não iniciada.
+As migrations 1A/1B/1C permanecem somente no repositório e não foram aplicadas
+remotamente. As features permanecem desligadas.
+
+## Fase 1D
+
+A Fase 1D foi implementada e validada no PR draft #5, com head aprovado
+`b3dcf005eb0438d6cad724de95eba2aa51d6f84b`:
+
+- contratos internos para identity, background check e messaging;
+- fakes sintéticos, determinísticos e isolados por instância e condomínio;
+- idempotência, fingerprint canônico, clock virtual e uma tentativa por chamada;
+- testes Deno de contrato, cenários, segurança e isolamento;
+- nenhuma rede, filesystem, Supabase, SDK externo, secret ou PII;
+- nenhuma decisão de domínio, integração real ou feature habilitada.
+
+O PR permanece draft e aguarda decisão humana de merge. A Fase 2 não foi
+iniciada nem autorizada.
 
 ## Migration drift
 
