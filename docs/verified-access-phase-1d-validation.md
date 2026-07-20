@@ -4,9 +4,11 @@
 
 ```text
 Base: f2f5296882df158481e44ea604a60b4e5bda2fce
-Head aprovado: b3dcf005eb0438d6cad724de95eba2aa51d6f84b
+Head técnico aprovado: b3dcf005eb0438d6cad724de95eba2aa51d6f84b
 PR: https://github.com/luisbizzan/confia-interfone-digital/pull/5
-Estado do PR: draft, aguardando decisão humana de merge
+Estado do PR: merged
+Squash commit: 4284085959e185892f00c77dd89138838ba1dcdb
+Merged at: 2026-07-20T11:47:02Z
 ```
 
 Commits técnicos:
@@ -103,4 +105,11 @@ acima.
   propaga negativa.
 - Fase 2 não foi iniciada nem autorizada.
 
-O merge do PR #5 depende exclusivamente de decisão humana posterior.
+## Merge
+
+O PR #5 foi integrado à `main` por squash merge em `2026-07-20T11:47:02Z`.
+O commit resultante é `4284085959e185892f00c77dd89138838ba1dcdb`.
+
+Após o merge, as migrations do Acesso Verificado permanecem sem execução
+remota e todas as feature flags permanecem desligadas. A Fase 2 não foi
+iniciada nem autorizada por este fechamento.

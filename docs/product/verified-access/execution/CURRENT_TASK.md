@@ -2,27 +2,27 @@
 
 ## Estado
 
-A Fase 1D foi implementada e validada no PR draft #5.
+A Fase 1D foi mergeada na `main` pelo squash commit
+`4284085959e185892f00c77dd89138838ba1dcdb` em `2026-07-20T11:47:02Z`.
 
-```text
-PR: https://github.com/luisbizzan/confia-interfone-digital/pull/5
-Head aprovado: b3dcf005eb0438d6cad724de95eba2aa51d6f84b
-Estado do PR: draft, aguardando decisão humana de merge
-```
-
-O escopo entregue contém somente contratos internos de providers, fakes
-determinísticos e testes Deno. A evidência completa está em
+Os contratos internos de providers, fakes determinísticos e 28 testes Deno
+foram entregues e validados. A evidência está em
 `docs/verified-access-phase-1d-validation.md`.
+
+## Fase 2
+
+O plano da Fase 2 está em revisão em
+`docs/product/verified-access/phases/PHASE_2.md`.
+
+A Fase 2 não foi iniciada nem está autorizada para implementação. Aguardar novo
+contrato versionado depois da aprovação do plano e da resolução dos blockers.
 
 ## Segurança e operação
 
-- Nenhuma migration Supabase remota foi executada.
+- Nenhuma migration Supabase remota foi executada nesta transição.
 - Todas as feature flags permanecem desligadas.
-- Nenhuma integração externa real, credencial, secret ou PII foi usada.
+- Nenhuma Edge Function, API, migration, provider, UI ou teste técnico da Fase
+  2 foi criado.
 - `persons` e o app Expo permanecem inalterados.
-- Nenhuma implementação da Fase 2 está autorizada.
 
-## Próximo passo
-
-Aguardar decisão humana sobre o merge do PR #5 e um novo contrato versionado.
 Este arquivo não autoriza implementação adicional.
