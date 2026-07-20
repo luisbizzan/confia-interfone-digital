@@ -1,6 +1,6 @@
 # Roadmap — Acesso Verificado
 
-Atualizado em 19 de julho de 2026.
+Atualizado em 20 de julho de 2026.
 
 | Fase | Estado | Evidência/Gate |
 |---|---|---|
@@ -8,7 +8,7 @@ Atualizado em 19 de julho de 2026.
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
-| Fase 1D — contratos e providers fake | Autorizada / aguardando execução | contrato `VA-1D-PROVIDER-CONTRACTS-AND-FAKES` em `execution/CURRENT_TASK.md` |
+| Fase 1D — contratos e providers fake | Implementada / validada / aguardando merge | PR draft #5, head `b3dcf005eb0438d6cad724de95eba2aa51d6f84b` |
 | Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
@@ -75,8 +75,22 @@ docs/verified-access-phase-1c-validation.md
 ```
 
 As migrations 1A/1B/1C permanecem somente no repositório e não foram aplicadas
-remotamente. As features permanecem desligadas. O plano documental da Fase 1D
-está em revisão e não autoriza implementação.
+remotamente. As features permanecem desligadas.
+
+## Fase 1D
+
+A Fase 1D foi implementada e validada no PR draft #5, com head aprovado
+`b3dcf005eb0438d6cad724de95eba2aa51d6f84b`:
+
+- contratos internos para identity, background check e messaging;
+- fakes sintéticos, determinísticos e isolados por instância e condomínio;
+- idempotência, fingerprint canônico, clock virtual e uma tentativa por chamada;
+- testes Deno de contrato, cenários, segurança e isolamento;
+- nenhuma rede, filesystem, Supabase, SDK externo, secret ou PII;
+- nenhuma decisão de domínio, integração real ou feature habilitada.
+
+O PR permanece draft e aguarda decisão humana de merge. A Fase 2 não foi
+iniciada nem autorizada.
 
 ## Migration drift
 
