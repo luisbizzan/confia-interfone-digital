@@ -1,8 +1,8 @@
 # Fase 3 — convite e cadastro público
 
-**Status:** Planejada / em revisão / não autorizada para implementação
+**Status:** Fase 3A autorizada / Fases 3B e 3C não autorizadas
 
-Stage: `Planejada / em revisão / não autorizada`.
+Stage: `3A autorizada / aguardando execução`.
 
 ## 1. Objetivo
 
@@ -688,4 +688,132 @@ Permanecem abertos e não podem ser resolvidos por inferência:
 - Nenhuma migration remota.
 - Nenhuma feature habilitada.
 - Nenhuma integração real.
-- Nenhum código técnico autorizado por esta especificação.
+- Somente o escopo técnico fechado da Fase 3A na seção 26 está autorizado.
+
+## 26. Contrato executável da Fase 3A
+
+### 26.1 Escopo fechado
+
+A Fase 3A implementa somente convite local, token opaco, quatro operações
+autenticadas do morador e preview por `MessagingProvider` fake. Não cria
+participant, identity profile, PII, sessão pública, endpoint público, página,
+job externo ou integração real. As Fases 3B e 3C permanecem não autorizadas.
+
+O slot permanece `OPEN` durante toda a Fase 3A. A tabela de convites controla a
+reserva lógica por índice único parcial. A primeira emissão pode mover a request
+de `DRAFT` para `INVITATIONS_PENDING`, transição já permitida pela Fase 1C. A
+Fase 3A não usa `RESERVED`, `CLAIMED` ou `claimed_at`.
+
+### 26.2 Token e expiração
+
+- A Edge Function gera 32 bytes com CSPRNG e serializa em base64url sem padding.
+- O token bruto existe apenas em memória no primeiro dispatch autorizado.
+- O banco recebe e persiste somente `v1:` seguido do SHA-256 hexadecimal.
+- `token_version` começa em 1 e cresce a cada reenvio/rotação.
+- A expiração é o menor valor entre o fim da request e 24 horas após emissão.
+- Reenvio aceita somente convite ativo, rotaciona hash e invalida o token
+  anterior na mesma transação.
+- Retry idempotente não recebe nem expõe novo token e não repete o fake.
+- Revogação muda imediatamente o estado para `REVOKED`.
+- Convites vencidos são materializados como `EXPIRED` por helper interno
+  default-deny durante operações de domínio; não há job nesta fase.
+
+### 26.3 Mensageria fake e atomicidade
+
+O contexto de messaging passa a aceitar, de forma compatível, um alvo por
+`participantId` ou por `participantSlotId` + `invitationId`. Identity e
+background continuam usando participant. Nenhum ID fictício é criado.
+
+Banco, command, invitation, audit e outbox são confirmados antes da chamada ao
+fake. A resposta inicial da RPC informa `dispatchRequired = true` apenas para a
+execução que criou ou rotacionou o token; replay retorna `false`. O fake não
+participa da transação e não faz retry interno. Falha após commit mantém o
+convite `PENDING`; nova tentativa exige `RESEND`, nova idempotency key e rotação.
+Não existe worker, rede ou envio real.
+
+### 26.4 Objetos autorizados
+
+Migrations exatas:
+
+```text
+supabase/migrations/20260721100000_verified_access_invitations.sql
+supabase/migrations/20260721101000_verified_access_invitation_rpcs.sql
+```
+
+Tabelas:
+
+```text
+verified_access_invitations
+verified_access_invitation_commands
+```
+
+RPCs autenticadas:
+
+```text
+verified_access_issue_resident_invitation
+verified_access_resend_resident_invitation
+verified_access_revoke_resident_invitation
+verified_access_list_resident_invitation_status
+```
+
+Edge Functions autenticadas:
+
+```text
+verified-access-invitation-issue
+verified-access-invitation-resend
+verified-access-invitation-revoke
+verified-access-invitation-status-list
+```
+
+Rollback dedicado:
+
+```text
+supabase/rollback/verified_access_phase_3a_rollback.sql
+```
+
+### 26.5 Allowlist exata
+
+```text
+supabase/migrations/20260721100000_verified_access_invitations.sql
+supabase/migrations/20260721101000_verified_access_invitation_rpcs.sql
+supabase/rollback/verified_access_phase_3a_rollback.sql
+supabase/functions/verified-access-invitation-issue/index.ts
+supabase/functions/verified-access-invitation-issue/index.test.ts
+supabase/functions/verified-access-invitation-resend/index.ts
+supabase/functions/verified-access-invitation-resend/index.test.ts
+supabase/functions/verified-access-invitation-revoke/index.ts
+supabase/functions/verified-access-invitation-revoke/index.test.ts
+supabase/functions/verified-access-invitation-status-list/index.ts
+supabase/functions/verified-access-invitation-status-list/index.test.ts
+supabase/functions/_shared/verified-access/invitations/auth.ts
+supabase/functions/_shared/verified-access/invitations/contracts.ts
+supabase/functions/_shared/verified-access/invitations/http.ts
+supabase/functions/_shared/verified-access/invitations/token.ts
+supabase/functions/_shared/verified-access/invitations/messaging.ts
+supabase/functions/_shared/verified-access/providers/contracts.ts
+supabase/functions/_shared/verified-access/providers/fake/fake-messaging-provider.ts
+supabase/functions/_shared/verified-access/providers/tests/fake-messaging-provider.test.ts
+supabase/tests/verified_access_phase_3a.sql
+supabase/tests/verified_access_phase_3a_integration.psql
+supabase/tests/verified_access_phase_3a_runtime_roles.psql
+.github/workflows/verified-access-phase-3a.yml
+.github/workflows/verified-access-phase-1a.yml
+supabase/config.toml
+docs/product/verified-access/phases/PHASE_3.md
+docs/product/verified-access/execution/CURRENT_TASK.md
+docs/verified-access-phase-3a-validation.md
+```
+
+Nenhum path adicional está autorizado. A implementação deve parar antes de
+editar qualquer arquivo fora desta lista.
+
+### 26.6 Gates
+
+- migrations do zero, pgTAP e integração das Fases 1A a 3A;
+- runtime roles, grants e RLS default-deny;
+- testes Deno do fake, shared modules e quatro endpoints;
+- lint, type-check e admin-web build;
+- rollback 3A, preservação 1A a 2, reaplicação e smoke pós-reaplicação;
+- workflow 1A com rollback cumulativo `3A -> 2 -> 1C -> 1B -> 1A`;
+- nenhuma PII, participant, página pública, rede, migration remota ou feature
+  habilitada.
