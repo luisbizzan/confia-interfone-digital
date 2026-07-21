@@ -20,6 +20,11 @@ insert into public.condominiums (id, name, document) values
   ('11111111-2222-4222-8222-222222222222', 'Phase 2 Synthetic B', 'P2-B')
 on conflict (id) do nothing;
 
+insert into public.condominium_features (condominium_id, feature_key, enabled) values
+  ('11111111-2222-4222-8222-222222222221', 'VERIFIED_ACCESS', false),
+  ('11111111-2222-4222-8222-222222222222', 'VERIFIED_ACCESS', false)
+on conflict (condominium_id, feature_key) do update set enabled = false;
+
 insert into public.units (id, condominium_id, type, block, number) values
   ('22222222-2222-4222-8222-222222222221', '11111111-2222-4222-8222-222222222221', 'APARTMENT', 'A', '101'),
   ('22222222-2222-4222-8222-222222222222', '11111111-2222-4222-8222-222222222222', 'APARTMENT', 'B', '202')
