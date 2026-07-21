@@ -1,5 +1,19 @@
 # CURRENT TASK — VA-P2-RESIDENT-REQUESTS
 
+## Correção retroativa de compatibilidade do CI
+
+O gate final autoriza uma correção estritamente operacional no workflow legado
+da Fase 1A. Como esse workflow aplica todas as migrations do repositório, seu
+rollback deve remover primeiro a Fase 2, depois a Fase 1C quando presente, a
+Fase 1B quando presente e, por último, a Fase 1A. Essa mudança não altera SQL,
+grants, RLS, migrations, features ou comportamento de domínio.
+
+Allowlist excepcional desta correção:
+
+- `.github/workflows/verified-access-phase-1a.yml`;
+- `docs/product/verified-access/execution/CURRENT_TASK.md`;
+- `docs/verified-access-phase-2-validation.md`.
+
 ## Objetivo
 
 Implementar a Fase 2 — solicitações autenticadas do morador — conforme o contrato
