@@ -129,7 +129,7 @@ begin
   perform public.verified_access_phase3a_assert_token_hash(p_token_hash);
   perform public.verified_access_phase3a_validate_command_input(p_idempotency_key, p_correlation_id);
 
-  select r, s into v_request, v_slot
+  select r.* into v_request
   from public.verified_access_requests r
   join public.verified_access_participant_slots s
     on s.request_id = r.id and s.condominium_id = r.condominium_id
@@ -137,6 +137,12 @@ begin
     and r.condominium_id = v_condominium_id
     and r.requested_by_user_id = v_actor_user_id
   for update of r, s;
+
+  select s.* into v_slot
+  from public.verified_access_participant_slots s
+  where s.id = p_participant_slot_id
+    and s.request_id = v_request.id
+    and s.condominium_id = v_condominium_id;
 
   if v_request.id is null then
     raise exception 'INVITATION_TARGET_NOT_FOUND' using errcode = 'P0001';
@@ -310,7 +316,7 @@ begin
   perform public.verified_access_phase3a_assert_token_hash(p_token_hash);
   perform public.verified_access_phase3a_validate_command_input(p_idempotency_key, p_correlation_id);
 
-  select r, i into v_request, v_invitation
+  select r.* into v_request
   from public.verified_access_invitations i
   join public.verified_access_requests r
     on r.id = i.request_id and r.condominium_id = i.condominium_id
@@ -318,6 +324,12 @@ begin
     and i.condominium_id = v_condominium_id
     and r.requested_by_user_id = v_actor_user_id
   for update of r, i;
+
+  select i.* into v_invitation
+  from public.verified_access_invitations i
+  where i.id = p_invitation_id
+    and i.request_id = v_request.id
+    and i.condominium_id = v_condominium_id;
 
   if v_invitation.id is null then
     raise exception 'INVITATION_NOT_FOUND' using errcode = 'P0001';
@@ -495,7 +507,7 @@ begin
     raise exception 'INVITATION_PAYLOAD_INVALID' using errcode = '22023';
   end if;
 
-  select r, i into v_request, v_invitation
+  select r.* into v_request
   from public.verified_access_invitations i
   join public.verified_access_requests r
     on r.id = i.request_id and r.condominium_id = i.condominium_id
@@ -503,6 +515,12 @@ begin
     and i.condominium_id = v_condominium_id
     and r.requested_by_user_id = v_actor_user_id
   for update of r, i;
+
+  select i.* into v_invitation
+  from public.verified_access_invitations i
+  where i.id = p_invitation_id
+    and i.request_id = v_request.id
+    and i.condominium_id = v_condominium_id;
 
   if v_invitation.id is null then
     raise exception 'INVITATION_NOT_FOUND' using errcode = 'P0001';
