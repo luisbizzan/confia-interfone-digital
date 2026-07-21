@@ -11,6 +11,7 @@ begin
 end $$;
 
 create role verified_access_phase3a_denied_test nologin;
+grant verified_access_phase3a_denied_test to postgres;
 set role verified_access_phase3a_denied_test;
 do $$
 begin
@@ -19,5 +20,6 @@ begin
 exception when insufficient_privilege then null;
 end $$;
 reset role;
+revoke verified_access_phase3a_denied_test from postgres;
 drop role verified_access_phase3a_denied_test;
 commit;
