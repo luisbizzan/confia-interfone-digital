@@ -62,6 +62,35 @@ select ok(
   'authenticated has only the technical EXECUTE path to resident RPCs'
 );
 
+select is_empty(
+  $$select 1
+    from information_schema.role_routine_grants
+    where specific_schema = 'public'
+      and routine_name in (
+        'verified_access_list_resident_service_types',
+        'verified_access_create_resident_request',
+        'verified_access_list_resident_requests',
+        'verified_access_get_resident_request',
+        'verified_access_cancel_resident_request'
+      )
+      and grantee = 'authenticated'$$,
+  'authenticated receives no direct function grant'
+);
+
+select ok(
+  exists (
+    select 1
+    from pg_auth_members m
+    join pg_roles granted on granted.oid = m.roleid
+    join pg_roles member_role on member_role.oid = m.member
+    where granted.rolname = 'verified_access_phase2_resident_executor'
+      and granted.rolcanlogin is false
+      and granted.rolinherit is false
+      and member_role.rolname = 'authenticated'
+  ),
+  'authenticated inherits the no-login exact RPC executor role'
+);
+
 select ok(
   (select bool_and(
      not has_function_privilege('anon', p.oid, 'EXECUTE')
@@ -113,9 +142,9 @@ select throws_ok(
       gen_random_uuid(), gen_random_uuid(), 'OTHER', '0123456789abcdef',
       'v1:' || repeat('a', 64), 'PROCESSING'
     )$$,
-  '23503',
+  '23514',
   null,
-  'tenant FKs reject orphan commands before invalid taxonomies can persist'
+  'command taxonomy CHECK rejects invalid command types'
 );
 
 select * from finish();

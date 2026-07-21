@@ -35,9 +35,11 @@ The exact authenticated RPC surface is:
 - `verified_access_cancel_resident_request`.
 
 Each RPC derives actor and tenant server-side, has a fixed
-`search_path = public, pg_temp`, and is `security definer`. Only the exact five
-RPC signatures have the technical `authenticated` EXECUTE grant. Helpers,
-tables, `PUBLIC`, `anon`, and `service_role` remain default-deny.
+`search_path = public, pg_temp`, and is `security definer`. A dedicated
+`NOLOGIN`/`NOINHERIT` executor role has EXECUTE only on the exact five RPC
+signatures and is granted only to `authenticated`; no function grant is made
+directly to `authenticated`. Helpers, tables, `PUBLIC`, `anon`, and
+`service_role` remain default-deny.
 
 ## Edge Functions
 

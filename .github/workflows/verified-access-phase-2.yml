@@ -151,6 +151,12 @@ jobs:
               raise exception 'Phase 2 command table survived rollback';
             end if;
             if exists (
+              select 1 from pg_roles
+              where rolname = 'verified_access_phase2_resident_executor'
+            ) then
+              raise exception 'Phase 2 executor role survived rollback';
+            end if;
+            if exists (
               select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
               where n.nspname = 'public' and p.proname in (
                 'verified_access_phase2_context',

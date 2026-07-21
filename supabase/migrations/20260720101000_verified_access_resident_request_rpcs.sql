@@ -692,11 +692,30 @@ revoke execute on function public.verified_access_list_resident_requests(text, t
 revoke execute on function public.verified_access_get_resident_request(uuid) from public, anon, authenticated, service_role;
 revoke execute on function public.verified_access_cancel_resident_request(uuid, text, text, text) from public, anon, authenticated, service_role;
 
-grant execute on function public.verified_access_list_resident_service_types(uuid) to authenticated;
-grant execute on function public.verified_access_create_resident_request(uuid, text, text, text, timestamptz, timestamptz, text, text, integer, text, text) to authenticated;
-grant execute on function public.verified_access_list_resident_requests(text, text, timestamptz, timestamptz, timestamptz, uuid, integer) to authenticated;
-grant execute on function public.verified_access_get_resident_request(uuid) to authenticated;
-grant execute on function public.verified_access_cancel_resident_request(uuid, text, text, text) to authenticated;
+do $$
+begin
+  if not exists (
+    select 1 from pg_roles where rolname = 'verified_access_phase2_resident_executor'
+  ) then
+    create role verified_access_phase2_resident_executor nologin noinherit;
+  end if;
+end;
+$$;
+
+alter role verified_access_phase2_resident_executor nologin noinherit;
+
+grant execute on function public.verified_access_list_resident_service_types(uuid)
+  to verified_access_phase2_resident_executor;
+grant execute on function public.verified_access_create_resident_request(uuid, text, text, text, timestamptz, timestamptz, text, text, integer, text, text)
+  to verified_access_phase2_resident_executor;
+grant execute on function public.verified_access_list_resident_requests(text, text, timestamptz, timestamptz, timestamptz, uuid, integer)
+  to verified_access_phase2_resident_executor;
+grant execute on function public.verified_access_get_resident_request(uuid)
+  to verified_access_phase2_resident_executor;
+grant execute on function public.verified_access_cancel_resident_request(uuid, text, text, text)
+  to verified_access_phase2_resident_executor;
+
+grant verified_access_phase2_resident_executor to authenticated;
 
 comment on function public.verified_access_create_resident_request(uuid, text, text, text, timestamptz, timestamptz, text, text, integer, text, text) is
   'Phase 2 authenticated resident request creation. Tenant and actor are derived server-side.';
