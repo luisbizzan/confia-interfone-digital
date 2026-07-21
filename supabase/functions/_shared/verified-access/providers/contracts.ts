@@ -24,6 +24,28 @@ export type ProviderReadContext = Pick<
   "condominiumId" | "requestId" | "participantId" | "correlationId"
 >;
 
+export type InvitationProviderContext = Readonly<{
+  condominiumId: string;
+  requestId: string;
+  participantSlotId: string;
+  invitationId: string;
+  correlationId: CorrelationId;
+  idempotencyKey: IdempotencyKey;
+  inputFingerprint: ProviderInputFingerprint;
+  requestedAt: IsoTimestamp;
+}>;
+
+export type MessagingProviderReadContext =
+  | ProviderReadContext
+  | Pick<
+    InvitationProviderContext,
+    | "condominiumId"
+    | "requestId"
+    | "participantSlotId"
+    | "invitationId"
+    | "correlationId"
+  >;
+
 export type ProviderMutationContext =
   & ProviderReadContext
   & Readonly<{
@@ -137,7 +159,7 @@ export type BackgroundCheckResult = Readonly<{
 export type MessageChannel = "SMS" | "WHATSAPP" | "EMAIL";
 
 export type InvitationMessageInput = Readonly<{
-  context: ProviderContext;
+  context: ProviderContext | InvitationProviderContext;
   channel: MessageChannel;
   ephemeralDestination: string;
   templateCode: string;

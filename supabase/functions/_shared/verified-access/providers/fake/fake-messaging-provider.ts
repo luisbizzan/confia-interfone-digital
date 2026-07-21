@@ -4,10 +4,11 @@ import {
   deriveFakeIdempotencyScope,
   deriveFakeIdentifier,
   type InvitationMessageInput,
+  type InvitationProviderContext,
   type MessageDelivery,
   type MessageDeliveryStatus,
+  type MessagingProviderReadContext,
   type ProviderContext,
-  type ProviderReadContext,
   type StatusMessageInput,
 } from "../contracts.ts";
 import type { MessagingProvider } from "../messaging-provider.ts";
@@ -69,7 +70,7 @@ export class FakeMessagingProvider implements MessagingProvider {
 
   async getDeliveryStatus(
     providerMessageId: string,
-    context: ProviderReadContext,
+    context: MessagingProviderReadContext,
   ): Promise<ProviderResult<MessageDeliveryStatus>> {
     await this.#clock.sleep(this.#latencyMs);
     const invalid = validateReadContext(context, this.#providerCode);
@@ -226,7 +227,7 @@ export class FakeMessagingProvider implements MessagingProvider {
 }
 
 function validateMutationContext(
-  context: ProviderContext,
+  context: ProviderContext | InvitationProviderContext,
   providerCode: string,
 ): ProviderResult<never> | undefined {
   if (
@@ -309,13 +310,16 @@ function validateChannel(
 }
 
 function validateReadContext(
-  context: ProviderReadContext,
+  context: MessagingProviderReadContext,
   providerCode: string,
 ): ProviderResult<never> | undefined {
   if (
     !isNonEmptyString(context.condominiumId) ||
     !isNonEmptyString(context.requestId) ||
-    !isNonEmptyString(context.participantId) ||
+    !("participantId" in context
+      ? isNonEmptyString(context.participantId)
+      : isNonEmptyString(context.participantSlotId) &&
+        isNonEmptyString(context.invitationId)) ||
     !isNonEmptyString(context.correlationId)
   ) {
     return invalidInput(context.correlationId, providerCode);

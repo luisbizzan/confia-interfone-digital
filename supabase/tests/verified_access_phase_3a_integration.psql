@@ -1,0 +1,82 @@
+\set ON_ERROR_STOP on
+\set VERBOSITY terse
+begin;
+
+insert into public.roles(id,name) values ('13131313-3333-4333-8333-333333333333','VERIFIED_ACCESS_PHASE_3A_TEST_ROLE') on conflict(name) do update set name=excluded.name;
+insert into auth.users(id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
+('33333333-3333-4333-8333-333333333331','00000000-0000-0000-0000-000000000000','authenticated','authenticated','phase3a-a@example.invalid','',now(),'{}','{}',now(),now()),
+('33333333-3333-4333-8333-333333333332','00000000-0000-0000-0000-000000000000','authenticated','authenticated','phase3a-b@example.invalid','',now(),'{}','{}',now(),now()) on conflict(id) do nothing;
+insert into public.condominiums(id,name,document) values
+('11111111-3333-4333-8333-333333333331','Phase 3A Synthetic A','P3A-A'),
+('11111111-3333-4333-8333-333333333332','Phase 3A Synthetic B','P3A-B') on conflict(id) do nothing;
+insert into public.condominium_features(condominium_id,feature_key,enabled) values
+('11111111-3333-4333-8333-333333333331','VERIFIED_ACCESS',true),
+('11111111-3333-4333-8333-333333333332','VERIFIED_ACCESS',true) on conflict(condominium_id,feature_key) do update set enabled=excluded.enabled;
+insert into public.units(id,condominium_id,type,block,number) values
+('22222222-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','APARTMENT','A','301'),
+('22222222-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333332','APARTMENT','B','302') on conflict(id) do nothing;
+insert into public.user_profiles(id,condominium_id,role_id) values
+('33333333-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','13131313-3333-4333-8333-333333333333'),
+('33333333-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333332','13131313-3333-4333-8333-333333333333') on conflict(id) do update set condominium_id=excluded.condominium_id,role_id=excluded.role_id;
+insert into public.unit_members(condominium_id,unit_id,user_id,active_for_calls,member_type) values
+('11111111-3333-4333-8333-333333333331','22222222-3333-4333-8333-333333333331','33333333-3333-4333-8333-333333333331',false,'RESIDENT'),
+('11111111-3333-4333-8333-333333333332','22222222-3333-4333-8333-333333333332','33333333-3333-4333-8333-333333333332',false,'RESIDENT') on conflict(unit_id,user_id) do nothing;
+insert into public.verified_access_policies(id,condominium_id,version,status,visitor_identity_mode,service_identity_mode,visitor_background_mode,service_background_mode,max_notice_days,content_checksum) values
+('44444444-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331',1,'ACTIVE','DISABLED','DISABLED','DISABLED','DISABLED',3650,repeat('3',64)),
+('44444444-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333332',1,'ACTIVE','DISABLED','DISABLED','DISABLED','DISABLED',3650,repeat('4',64));
+insert into public.verified_access_requests(id,condominium_id,unit_id,requested_by_user_id,request_type,status,starts_at,ends_at,timezone,participant_limit,policy_id,policy_version) values
+('55555555-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','22222222-3333-4333-8333-333333333331','33333333-3333-4333-8333-333333333331','VISITOR','DRAFT','2030-01-01T12:00:00Z','2030-01-01T14:00:00Z','UTC',2,'44444444-3333-4333-8333-333333333331',1),
+('55555555-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333332','22222222-3333-4333-8333-333333333332','33333333-3333-4333-8333-333333333332','VISITOR','DRAFT','2030-01-01T12:00:00Z','2030-01-01T14:00:00Z','UTC',1,'44444444-3333-4333-8333-333333333332',1);
+insert into public.verified_access_participant_slots(id,condominium_id,request_id,slot_number,status) values
+('66666666-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','55555555-3333-4333-8333-333333333331',1,'OPEN'),
+('66666666-3333-4333-8333-333333333333','11111111-3333-4333-8333-333333333331','55555555-3333-4333-8333-333333333331',2,'OPEN'),
+('66666666-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333332','55555555-3333-4333-8333-333333333332',1,'OPEN');
+
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333331',true);
+create temporary table phase3a_result(name text primary key, payload jsonb) on commit drop;
+insert into phase3a_result values ('issued', public.verified_access_issue_resident_invitation('66666666-3333-4333-8333-333333333331','v1:'||repeat('a',64),'phase3a-issue-key-0001','phase3a-correlation-issue'));
+
+do $$ begin
+  if (select payload->>'invitationStatus' from phase3a_result where name='issued') <> 'PENDING' then raise exception 'issue failed'; end if;
+  if (select status from public.verified_access_requests where id='55555555-3333-4333-8333-333333333331') <> 'INVITATIONS_PENDING' then raise exception 'request did not transition'; end if;
+  if (select status from public.verified_access_participant_slots where id='66666666-3333-4333-8333-333333333331') <> 'OPEN' then raise exception 'slot was reserved before registration'; end if;
+  if exists(select 1 from public.verified_access_participants where request_id='55555555-3333-4333-8333-333333333331') then raise exception 'Phase 3A created participant'; end if;
+  if exists(select 1 from public.verified_access_audit_events where aggregate_id=(select (payload->>'invitationId')::uuid from phase3a_result where name='issued') and upper(metadata::text) like '%TOKEN%') then raise exception 'token leaked to audit'; end if;
+  if exists(select 1 from public.verified_access_outbox_events where aggregate_id=(select (payload->>'invitationId')::uuid from phase3a_result where name='issued') and upper(payload::text) like '%TOKEN%') then raise exception 'token leaked to outbox'; end if;
+end $$;
+
+do $$ declare v_replayed jsonb; begin
+  v_replayed := public.verified_access_issue_resident_invitation('66666666-3333-4333-8333-333333333331','v1:'||repeat('b',64),'phase3a-issue-key-0001','phase3a-correlation-replay');
+  if v_replayed->>'dispatchRequired' <> 'false' then raise exception 'idempotent replay requested dispatch'; end if;
+  if (select count(*) from public.verified_access_invitations where participant_slot_id='66666666-3333-4333-8333-333333333331') <> 1 then raise exception 'replay duplicated invitation'; end if;
+end $$;
+
+do $$ declare v_resent jsonb; v_id uuid; begin
+  v_id := (select (payload->>'invitationId')::uuid from phase3a_result where name='issued');
+  v_resent := public.verified_access_resend_resident_invitation(v_id,'v1:'||repeat('c',64),'phase3a-resend-key-001','phase3a-correlation-resend');
+  if v_resent->>'tokenVersion' <> '2' or (select token_hash from public.verified_access_invitations where id=v_id) <> 'v1:'||repeat('c',64) then raise exception 'resend did not rotate token'; end if;
+end $$;
+
+insert into phase3a_result values ('expiring', public.verified_access_issue_resident_invitation('66666666-3333-4333-8333-333333333333','v1:'||repeat('e',64),'phase3a-expire-key-001','phase3a-correlation-expire'));
+update public.verified_access_invitations
+set issued_at=now()-interval '2 hours', expires_at=now()-interval '1 hour'
+where id=(select (payload->>'invitationId')::uuid from phase3a_result where name='expiring');
+do $$ declare v_result jsonb; v_id uuid; begin
+  v_id := (select (payload->>'invitationId')::uuid from phase3a_result where name='expiring');
+  v_result := public.verified_access_resend_resident_invitation(v_id,'v1:'||repeat('f',64),'phase3a-expired-resend','phase3a-correlation-expired');
+  if v_result->>'invitationStatus' <> 'EXPIRED' or v_result->>'dispatchRequired' <> 'false' then raise exception 'expired invitation was not materialized safely'; end if;
+  if (select status from public.verified_access_invitations where id=v_id) <> 'EXPIRED' then raise exception 'expired status did not persist'; end if;
+end $$;
+
+do $$ begin
+  perform public.verified_access_issue_resident_invitation('66666666-3333-4333-8333-333333333332','v1:'||repeat('d',64),'phase3a-cross-key-0001','phase3a-correlation-cross');
+  raise exception 'cross-tenant issue succeeded';
+exception when sqlstate 'P0001' then if sqlerrm <> 'SLOT_NOT_FOUND' then raise; end if; end $$;
+
+do $$ declare v_revoked jsonb; begin
+  v_revoked := public.verified_access_revoke_resident_invitation((select (payload->>'invitationId')::uuid from phase3a_result where name='issued'),'phase3a-revoke-key-01','RESIDENT_REVOKED','phase3a-correlation-revoke');
+  if v_revoked->>'invitationStatus' <> 'REVOKED' then raise exception 'revoke failed'; end if;
+  if (select count(*) from public.verified_access_list_resident_invitation_status('55555555-3333-4333-8333-333333333331')) <> 1 then raise exception 'status list failed'; end if;
+end $$;
+
+rollback;

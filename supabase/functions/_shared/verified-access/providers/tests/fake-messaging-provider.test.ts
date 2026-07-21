@@ -79,6 +79,25 @@ Deno.test("message sends are idempotent per operation and reject conflicts", asy
   );
 });
 
+Deno.test("invitation messages accept a slot target before participant creation", async () => {
+  const provider = new FakeMessagingProvider({ scenario: "MESSAGE_SUCCESS" });
+  const input = await invitationInput("slot-target");
+  const delivery = await provider.sendInvitation({
+    ...input,
+    context: {
+      condominiumId: input.context.condominiumId,
+      requestId: input.context.requestId,
+      participantSlotId: "slot-message",
+      invitationId: "invitation-message",
+      correlationId: input.context.correlationId,
+      idempotencyKey: input.context.idempotencyKey,
+      inputFingerprint: input.context.inputFingerprint,
+      requestedAt: input.context.requestedAt,
+    },
+  });
+  assert(mustSuccess(delivery).status === "DELIVERED");
+});
+
 Deno.test("message identifiers and metadata contain no destination or payload", async () => {
   const provider = new FakeMessagingProvider({ scenario: "MESSAGE_SUCCESS" });
   const marker = "SYNTHETIC_PRIVATE_DESTINATION";

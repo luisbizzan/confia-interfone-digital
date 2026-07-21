@@ -80,3 +80,23 @@ entrypoint = "./functions/verified-access-request-get/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/verified-access-request-cancel/index.ts"
+
+[functions.verified-access-invitation-issue]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-invitation-issue/index.ts"
+
+[functions.verified-access-invitation-resend]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-invitation-resend/index.ts"
+
+[functions.verified-access-invitation-revoke]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-invitation-revoke/index.ts"
+
+[functions.verified-access-invitation-status-list]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-invitation-status-list/index.ts"

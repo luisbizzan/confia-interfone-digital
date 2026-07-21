@@ -1,0 +1,136 @@
+name: Verified Access Phase 3A
+
+on:
+  push:
+    branches: [agent/verified-access-phase-3]
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/verified-access-phase-3a.yml"
+      - "docs/product/verified-access/**"
+      - "docs/verified-access-phase-3a-validation.md"
+  workflow_dispatch:
+
+concurrency:
+  group: verified-access-phase-3a-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: database
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Start Supabase local stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw=/tmp/verified-access-phase-3a-start-raw.log
+          safe=/tmp/verified-access-phase-3a-start-sanitized.log
+          : > "$raw"
+          started=0
+          for attempt in 1 2 3; do
+            npx supabase stop --no-backup >> "$raw" 2>&1 || true
+            if npx supabase start >> "$raw" 2>&1; then started=1; break; fi
+            sleep $((attempt * 20))
+          done
+          sed -E \
+            -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|API URL|DB URL|JWT_SECRET|POSTGRES_PASSWORD)/Id' \
+            -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+            -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+            "$raw" > "$safe"
+          rm -f "$raw"
+          test "$started" -eq 1 || { tail -100 "$safe"; exit 1; }
+      - name: Apply migrations
+        run: npx supabase db reset
+      - name: Run pgTAP
+        run: npx supabase test db
+      - name: Run integration SQL for Phases 1A through 3A
+        env: { PGPASSWORD: postgres }
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in supabase/tests/verified_access_phase_1a_integration.psql supabase/tests/verified_access_phase_1b_integration.psql supabase/tests/verified_access_phase_1c_integration.psql supabase/tests/verified_access_phase_2_integration.psql supabase/tests/verified_access_phase_3a_integration.psql; do
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$file"
+          done
+      - name: Run Phase 3A runtime role checks
+        env: { PGPASSWORD: postgres }
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_3a_runtime_roles.psql
+      - name: Database lint
+        run: npx supabase db lint
+      - name: Roll back Phase 3A
+        env: { PGPASSWORD: postgres }
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rollback/verified_access_phase_3a_rollback.sql
+      - name: Verify rollback and Phase 1A-2 preservation
+        env: { PGPASSWORD: postgres }
+        shell: bash
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$ begin
+            if to_regclass('public.verified_access_invitations') is not null or to_regclass('public.verified_access_invitation_commands') is not null then raise exception 'Phase 3A table survived rollback'; end if;
+            if exists(select 1 from pg_roles where rolname='verified_access_phase3a_resident_executor') then raise exception 'Phase 3A role survived rollback'; end if;
+            if to_regclass('public.verified_access_request_commands') is null or to_regclass('public.verified_access_requests') is null or to_regclass('public.verified_access_network_subjects') is null or to_regclass('public.persons') is null then raise exception 'earlier phase object was removed'; end if;
+            if exists(select 1 from public.condominium_features where feature_key='VERIFIED_ACCESS' and enabled) then raise exception 'feature became enabled'; end if;
+          end $$;
+          SQL
+      - name: Reapply and retest
+        run: npx supabase db reset && npx supabase test db
+      - name: Post-reapplication integration
+        env: { PGPASSWORD: postgres }
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in supabase/tests/verified_access_phase_1a_integration.psql supabase/tests/verified_access_phase_1b_integration.psql supabase/tests/verified_access_phase_1c_integration.psql supabase/tests/verified_access_phase_2_integration.psql supabase/tests/verified_access_phase_3a_integration.psql; do
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$file"
+          done
+      - if: always()
+        run: npx supabase stop --no-backup || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-access-phase-3a-sanitized-diagnostics
+          path: /tmp/verified-access-phase-3a-start-sanitized.log
+          if-no-files-found: ignore
+
+  edge-functions:
+    name: edge-functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - name: Format check
+        run: deno fmt --check supabase/functions/_shared/verified-access/invitations supabase/functions/_shared/verified-access/providers/contracts.ts supabase/functions/_shared/verified-access/providers/messaging-provider.ts supabase/functions/_shared/verified-access/providers/fake/fake-messaging-provider.ts supabase/functions/_shared/verified-access/providers/tests/fake-messaging-provider.test.ts supabase/functions/verified-access-invitation-issue supabase/functions/verified-access-invitation-resend supabase/functions/verified-access-invitation-revoke supabase/functions/verified-access-invitation-status-list
+      - name: Lint
+        run: deno lint supabase/functions/_shared/verified-access/invitations supabase/functions/_shared/verified-access/providers/contracts.ts supabase/functions/_shared/verified-access/providers/messaging-provider.ts supabase/functions/_shared/verified-access/providers/fake/fake-messaging-provider.ts supabase/functions/_shared/verified-access/providers/tests/fake-messaging-provider.test.ts supabase/functions/verified-access-invitation-issue supabase/functions/verified-access-invitation-resend supabase/functions/verified-access-invitation-revoke supabase/functions/verified-access-invitation-status-list
+      - name: Type check
+        run: deno check supabase/functions/verified-access-invitation-issue/index.ts supabase/functions/verified-access-invitation-resend/index.ts supabase/functions/verified-access-invitation-revoke/index.ts supabase/functions/verified-access-invitation-status-list/index.ts
+      - name: Unit tests
+        run: deno test --allow-env supabase/functions/_shared/verified-access/providers/tests supabase/functions/verified-access-invitation-issue/index.test.ts supabase/functions/verified-access-invitation-resend/index.test.ts supabase/functions/verified-access-invitation-revoke/index.test.ts supabase/functions/verified-access-invitation-status-list/index.test.ts
+      - name: Reject logs, service-role use and PII aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(supabase/functions/_shared/verified-access/invitations supabase/functions/verified-access-invitation-issue supabase/functions/verified-access-invitation-resend supabase/functions/verified-access-invitation-revoke supabase/functions/verified-access-invitation-status-list)
+          ! grep -RInE 'console\.(log|debug|info|warn|error)|SERVICE_ROLE_KEY|service_role' "${paths[@]}"
+          ! grep -RInE '(cpf|documento|biometria|liveness|face.?match)' "${paths[@]}"
+
+  admin-web:
+    name: admin-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - run: npm ci
+      - run: npm run admin:lint
+      - run: npm run admin:build
