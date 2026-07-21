@@ -1,0 +1,113 @@
+\set ON_ERROR_STOP on
+\set VERBOSITY verbose
+
+\if :{?upstream_2112_affected}
+\else
+  \set upstream_2112_affected 0
+\endif
+
+\echo 'Verified Access Phase 2 runtime role permission harness'
+
+select version() as postgres_version;
+select extname, extversion from pg_extension where extname = 'supautils';
+
+select
+  r.role_name,
+  s.signature,
+  has_function_privilege(r.role_name, s.signature, 'EXECUTE') as has_execute
+from (values ('anon'), ('authenticated'), ('service_role')) r(role_name)
+cross join (values
+  ('public.verified_access_list_resident_service_types(uuid)'),
+  ('public.verified_access_create_resident_request(uuid,text,text,text,timestamptz,timestamptz,text,text,integer,text,text)'),
+  ('public.verified_access_list_resident_requests(text,text,timestamptz,timestamptz,timestamptz,uuid,integer)'),
+  ('public.verified_access_get_resident_request(uuid)'),
+  ('public.verified_access_cancel_resident_request(uuid,text,text,text)')
+) s(signature)
+order by r.role_name, s.signature;
+
+do $$
+declare
+  v_signature text;
+  v_proc oid;
+begin
+  foreach v_signature in array array[
+    'public.verified_access_list_resident_service_types(uuid)',
+    'public.verified_access_create_resident_request(uuid,text,text,text,timestamptz,timestamptz,text,text,integer,text,text)',
+    'public.verified_access_list_resident_requests(text,text,timestamptz,timestamptz,timestamptz,uuid,integer)',
+    'public.verified_access_get_resident_request(uuid)',
+    'public.verified_access_cancel_resident_request(uuid,text,text,text)'
+  ] loop
+    v_proc := to_regprocedure(v_signature);
+    if v_proc is null then raise exception 'missing RPC: %', v_signature; end if;
+    if not exists (
+      select 1 from pg_proc p
+      where p.oid = v_proc
+        and pg_get_userbyid(p.proowner) = 'postgres'
+        and p.prosecdef
+        and p.proconfig @> array['search_path=public, pg_temp']::text[]
+    ) then raise exception 'invalid owner/security/search_path: %', v_signature; end if;
+    if has_function_privilege('anon', v_signature, 'EXECUTE')
+       or not has_function_privilege('authenticated', v_signature, 'EXECUTE')
+       or has_function_privilege('service_role', v_signature, 'EXECUTE') then
+      raise exception 'invalid runtime ACL: %', v_signature;
+    end if;
+  end loop;
+end $$;
+
+set role anon;
+select current_user, session_user, 1;
+reset role;
+set role authenticated;
+select current_user, session_user, 1;
+reset role;
+set role service_role;
+select current_user, session_user, 1;
+reset role;
+
+create role verified_access_phase2_denied_test nologin inherit;
+grant verified_access_phase2_denied_test to postgres;
+
+\set ON_ERROR_STOP off
+set role verified_access_phase2_denied_test;
+select public.verified_access_list_resident_service_types('22222222-2222-4222-8222-222222222222'::uuid);
+\set synthetic_sqlstate :SQLSTATE
+reset role;
+\set ON_ERROR_STOP on
+select :'synthetic_sqlstate' = '42501' as sqlstate_ok \gset
+\if :sqlstate_ok
+  \echo 'SYNTHETIC_ROLE_PHASE2_SQLSTATE_42501'
+\else
+  \echo 'Synthetic role did not return 42501:' :synthetic_sqlstate
+  \quit 1
+\endif
+
+revoke verified_access_phase2_denied_test from postgres;
+drop role verified_access_phase2_denied_test;
+
+\if :upstream_2112_affected
+  \echo 'SKIPPED_UPSTREAM_SUPABASE_POSTGRES_2112'
+\else
+  \set ON_ERROR_STOP off
+  set role anon;
+  select public.verified_access_list_resident_service_types('22222222-2222-4222-8222-222222222222'::uuid);
+  \set anon_sqlstate :SQLSTATE
+  reset role;
+  set role service_role;
+  select public.verified_access_list_resident_service_types('22222222-2222-4222-8222-222222222222'::uuid);
+  \set service_sqlstate :SQLSTATE
+  reset role;
+  \set ON_ERROR_STOP on
+  select :'anon_sqlstate' = '42501' and :'service_sqlstate' = '42501' as reserved_sqlstate_ok \gset
+  \if :reserved_sqlstate_ok
+    \echo 'RESERVED_ROLES_PHASE2_SQLSTATE_42501'
+  \else
+    \echo 'Reserved roles did not return 42501:' :anon_sqlstate :service_sqlstate
+    \quit 1
+  \endif
+\endif
+
+select not exists (
+  select 1 from pg_roles where rolname = 'verified_access_phase2_denied_test'
+) as synthetic_role_removed;
+
+\echo 'VERIFIED_ACCESS_PHASE_2_RUNTIME_ROLES_OK'

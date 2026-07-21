@@ -1,0 +1,315 @@
+name: Verified Access Phase 2
+
+on:
+  push:
+    branches:
+      - agent/verified-access-phase-2
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/rollback/**"
+      - "supabase/tests/**"
+      - "supabase/functions/**"
+      - "supabase/config.toml"
+      - ".github/workflows/verified-access-phase-2.yml"
+      - "docs/verified-access-phase-2-validation.md"
+      - "docs/product/verified-access/**"
+  workflow_dispatch:
+
+concurrency:
+  group: verified-access-phase-2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: database
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Start Supabase local stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw=/tmp/verified-access-phase-2-start-raw.log
+          safe=/tmp/verified-access-phase-2-start-sanitized.log
+          : > "$raw"
+          : > "$safe"
+          started=0
+          for attempt in 1 2 3; do
+            echo "Supabase start attempt ${attempt}/3" >> "$raw"
+            npx supabase stop --no-backup >> "$raw" 2>&1 || true
+            if npx supabase start >> "$raw" 2>&1; then
+              started=1
+              break
+            fi
+            sleep $((attempt * 20))
+          done
+          sed -E \
+            -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|API URL|DB URL|JWT_SECRET|POSTGRES_PASSWORD)/Id' \
+            -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+            -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+            "$raw" > "$safe"
+          rm -f "$raw"
+          if [ "$started" -ne 1 ]; then
+            tail -100 "$safe"
+            exit 1
+          fi
+
+      - name: Apply migrations from scratch
+        run: npx supabase db reset
+
+      - name: Run pgTAP
+        run: npx supabase test db
+
+      - name: Run integration SQL for Phases 1A through 2
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test_file in \
+            supabase/tests/verified_access_phase_1a_integration.psql \
+            supabase/tests/verified_access_phase_1b_integration.psql \
+            supabase/tests/verified_access_phase_1c_integration.psql \
+            supabase/tests/verified_access_phase_2_integration.psql
+          do
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+              -v ON_ERROR_STOP=1 -f "$test_file"
+          done
+
+      - name: Run Phase 2 runtime role checks
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup_role() {
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+              -c 'revoke verified_access_phase2_denied_test from postgres' >/dev/null 2>&1 || true
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+              -c 'drop role if exists verified_access_phase2_denied_test' >/dev/null 2>&1 || true
+          }
+          cleanup_role
+          trap cleanup_role EXIT
+          container=$(docker ps -a --filter 'label=com.supabase.cli.project' --format '{{.ID}}' | while read -r id; do
+            if docker inspect --format '{{.Config.Image}}' "$id" | grep -qE '(^|/)supabase/postgres:'; then
+              echo "$id"
+              break
+            fi
+          done)
+          image=$(docker inspect --format '{{.Config.Image}}' "$container")
+          tag=${image##*:}
+          affected=0
+          if [[ "$tag" =~ ^17\.6\.1\.([0-9]+)$ ]] && (( 10#${BASH_REMATCH[1]} >= 100 )); then
+            affected=1
+          fi
+          echo "Supabase CLI: $(npx supabase --version)"
+          echo "Supabase Postgres image: $image"
+          echo "UPSTREAM_2112_AFFECTED=$affected" >> "$GITHUB_ENV"
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -v upstream_2112_affected="$affected" \
+            -f supabase/tests/verified_access_phase_2_runtime_roles.psql
+          cleanup_role
+          trap - EXIT
+          pg_isready -h 127.0.0.1 -p 54322 -U postgres
+
+      - name: Run database lint
+        run: npx supabase db lint
+
+      - name: Roll back Phase 2
+        env:
+          PGPASSWORD: postgres
+        run: >-
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres
+          -v ON_ERROR_STOP=1
+          -f supabase/rollback/verified_access_phase_2_rollback.sql
+
+      - name: Verify rollback scope and preservation
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$
+          begin
+            if to_regclass('public.verified_access_request_commands') is not null then
+              raise exception 'Phase 2 command table survived rollback';
+            end if;
+            if exists (
+              select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public' and p.proname in (
+                'verified_access_phase2_context',
+                'verified_access_phase2_assert_feature',
+                'verified_access_phase2_assert_resident_unit',
+                'verified_access_phase2_normalize_text',
+                'verified_access_phase2_fingerprint',
+                'verified_access_list_resident_service_types',
+                'verified_access_create_resident_request',
+                'verified_access_list_resident_requests',
+                'verified_access_get_resident_request',
+                'verified_access_cancel_resident_request'
+              )
+            ) then
+              raise exception 'Phase 2 functions survived rollback';
+            end if;
+            if to_regclass('public.verified_access_requests') is null
+               or to_regclass('public.verified_access_participants') is null
+               or to_regclass('public.verified_access_participant_slots') is null
+               or to_regclass('public.verified_access_policies') is null
+               or to_regclass('public.verified_access_audit_events') is null
+               or to_regclass('public.verified_access_outbox_events') is null
+               or to_regclass('public.verified_access_network_subjects') is null
+               or to_regclass('public.persons') is null then
+              raise exception 'rollback removed a Phase 1A-1C or persons table';
+            end if;
+            if exists (
+              select 1 from public.condominium_features
+              where feature_key = 'VERIFIED_ACCESS' and enabled
+            ) then
+              raise exception 'rollback enabled VERIFIED_ACCESS';
+            end if;
+          end $$;
+          SQL
+          test -f supabase/functions/_shared/verified-access/providers/contracts.ts
+          test -f supabase/functions/_shared/verified-access/providers/fake/fake-identity-provider.ts
+          test -f supabase/functions/_shared/verified-access/providers/fake/fake-background-check-provider.ts
+          test -f supabase/functions/_shared/verified-access/providers/fake/fake-messaging-provider.ts
+
+      - name: Reapply migrations
+        run: npx supabase db reset
+
+      - name: Run post-reapplication pgTAP
+        run: npx supabase test db
+
+      - name: Run post-reapplication integration smoke
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test_file in \
+            supabase/tests/verified_access_phase_1a_integration.psql \
+            supabase/tests/verified_access_phase_1b_integration.psql \
+            supabase/tests/verified_access_phase_1c_integration.psql \
+            supabase/tests/verified_access_phase_2_integration.psql
+          do
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+              -v ON_ERROR_STOP=1 -f "$test_file"
+          done
+
+      - name: Run post-reapplication runtime checks
+        env:
+          PGPASSWORD: postgres
+        shell: bash
+        run: |
+          set -euo pipefail
+          cleanup_role() {
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+              -c 'revoke verified_access_phase2_denied_test from postgres' >/dev/null 2>&1 || true
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+              -c 'drop role if exists verified_access_phase2_denied_test' >/dev/null 2>&1 || true
+          }
+          cleanup_role
+          trap cleanup_role EXIT
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres \
+            -v ON_ERROR_STOP=1 -v upstream_2112_affected="$UPSTREAM_2112_AFFECTED" \
+            -f supabase/tests/verified_access_phase_2_runtime_roles.psql
+          cleanup_role
+          trap - EXIT
+          pg_isready -h 127.0.0.1 -p 54322 -U postgres
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: npx supabase stop --no-backup || true
+
+      - name: Upload sanitized startup diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-access-phase-2-sanitized-diagnostics
+          path: /tmp/verified-access-phase-2-start-sanitized.log
+          if-no-files-found: ignore
+
+  edge-functions:
+    name: edge-functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Format check
+        run: deno fmt --check supabase/functions/_shared/verified-access/resident-requests supabase/functions/verified-access-service-types-list supabase/functions/verified-access-request-create supabase/functions/verified-access-request-list supabase/functions/verified-access-request-get supabase/functions/verified-access-request-cancel
+
+      - name: Lint
+        run: deno lint supabase/functions/_shared/verified-access/resident-requests supabase/functions/verified-access-service-types-list supabase/functions/verified-access-request-create supabase/functions/verified-access-request-list supabase/functions/verified-access-request-get supabase/functions/verified-access-request-cancel
+
+      - name: Type check
+        run: deno check supabase/functions/verified-access-service-types-list/index.ts supabase/functions/verified-access-request-create/index.ts supabase/functions/verified-access-request-list/index.ts supabase/functions/verified-access-request-get/index.ts supabase/functions/verified-access-request-cancel/index.ts
+
+      - name: Unit tests
+        run: deno test --allow-env supabase/functions/verified-access-service-types-list/index.test.ts supabase/functions/verified-access-request-create/index.test.ts supabase/functions/verified-access-request-list/index.test.ts supabase/functions/verified-access-request-get/index.test.ts supabase/functions/verified-access-request-cancel/index.test.ts
+
+      - name: Audit logs, service-role use and PII aliases
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(
+            supabase/functions/_shared/verified-access/resident-requests
+            supabase/functions/verified-access-service-types-list
+            supabase/functions/verified-access-request-create
+            supabase/functions/verified-access-request-list
+            supabase/functions/verified-access-request-get
+            supabase/functions/verified-access-request-cancel
+          )
+          if grep -RInE 'console\.(log|debug|info|warn|error)|SERVICE_ROLE_KEY|service_role' "${paths[@]}"; then
+            echo 'Forbidden logging or service-role use found.'
+            exit 1
+          fi
+          if grep -RInE '(cpf|documento|biometria|liveness|face.?match)' "${paths[@]}"; then
+            echo 'Forbidden PII alias found.'
+            exit 1
+          fi
+
+  admin-web:
+    name: admin-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint admin web
+        run: npm run admin:lint
+
+      - name: Build admin web
+        run: npm run admin:build

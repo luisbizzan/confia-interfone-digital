@@ -1,0 +1,335 @@
+\set ON_ERROR_STOP on
+\set VERBOSITY terse
+
+begin;
+
+insert into public.roles (id, name)
+values ('12121212-2222-4222-8222-222222222222', 'VERIFIED_ACCESS_PHASE_2_TEST_ROLE')
+on conflict (name) do update set name = excluded.name;
+
+insert into auth.users (
+  id, instance_id, aud, role, email, encrypted_password, email_confirmed_at,
+  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
+) values
+  ('33333333-2222-4222-8222-222222222221', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'phase2-a@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now()),
+  ('33333333-2222-4222-8222-222222222222', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'phase2-b@example.invalid', '', now(), '{}'::jsonb, '{}'::jsonb, now(), now())
+on conflict (id) do nothing;
+
+insert into public.condominiums (id, name, document) values
+  ('11111111-2222-4222-8222-222222222221', 'Phase 2 Synthetic A', 'P2-A'),
+  ('11111111-2222-4222-8222-222222222222', 'Phase 2 Synthetic B', 'P2-B')
+on conflict (id) do nothing;
+
+insert into public.units (id, condominium_id, type, block, number) values
+  ('22222222-2222-4222-8222-222222222221', '11111111-2222-4222-8222-222222222221', 'APARTMENT', 'A', '101'),
+  ('22222222-2222-4222-8222-222222222222', '11111111-2222-4222-8222-222222222222', 'APARTMENT', 'B', '202')
+on conflict (id) do nothing;
+
+insert into public.user_profiles (id, condominium_id, role_id) values
+  ('33333333-2222-4222-8222-222222222221', '11111111-2222-4222-8222-222222222221', '12121212-2222-4222-8222-222222222222'),
+  ('33333333-2222-4222-8222-222222222222', '11111111-2222-4222-8222-222222222222', '12121212-2222-4222-8222-222222222222')
+on conflict (id) do update set condominium_id = excluded.condominium_id, role_id = excluded.role_id;
+
+insert into public.unit_members (
+  condominium_id, unit_id, user_id, active_for_calls, member_type
+) values
+  ('11111111-2222-4222-8222-222222222221', '22222222-2222-4222-8222-222222222221', '33333333-2222-4222-8222-222222222221', false, 'RESIDENT'),
+  ('11111111-2222-4222-8222-222222222222', '22222222-2222-4222-8222-222222222222', '33333333-2222-4222-8222-222222222222', false, 'RESIDENT')
+on conflict (unit_id, user_id) do update set member_type = 'RESIDENT', active_for_calls = false;
+
+insert into public.verified_access_policies (
+  id, condominium_id, version, status, visitor_identity_mode,
+  service_identity_mode, visitor_background_mode, service_background_mode,
+  max_notice_days, content_checksum
+) values
+  ('44444444-2222-4222-8222-222222222221', '11111111-2222-4222-8222-222222222221', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', 3650, repeat('1', 64)),
+  ('44444444-2222-4222-8222-222222222222', '11111111-2222-4222-8222-222222222222', 1, 'ACTIVE', 'DISABLED', 'DISABLED', 'DISABLED', 'DISABLED', 3650, repeat('2', 64));
+
+select set_config('request.jwt.claim.sub', '33333333-2222-4222-8222-222222222221', true);
+
+do $$
+begin
+  perform public.verified_access_list_resident_service_types('22222222-2222-4222-8222-222222222221');
+  raise exception 'feature-disabled test unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'FEATURE_DISABLED' then raise; end if;
+end $$;
+
+update public.condominium_features
+set enabled = true
+where condominium_id in ('11111111-2222-4222-8222-222222222221', '11111111-2222-4222-8222-222222222222')
+  and feature_key = 'VERIFIED_ACCESS';
+
+do $$
+begin
+  perform public.verified_access_list_resident_service_types('22222222-2222-4222-8222-222222222222');
+  raise exception 'cross-tenant unit unexpectedly authorized';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'UNIT_NOT_AUTHORIZED' then raise; end if;
+end $$;
+
+do $$
+begin
+  if (select count(*) from public.verified_access_list_resident_service_types('22222222-2222-4222-8222-222222222221')) <> 0 then
+    raise exception 'catalog must default deny absent tenant configuration';
+  end if;
+end $$;
+
+insert into public.verified_access_condominium_service_types (
+  condominium_id, service_type_id, is_enabled
+)
+select '11111111-2222-4222-8222-222222222221', id, true
+from public.verified_access_service_types where code in ('CLEANING', 'OTHER');
+
+do $$
+begin
+  perform public.verified_access_create_resident_request(
+    '22222222-2222-4222-8222-222222222222', 'VISITOR', null, null,
+    '2030-01-01T15:00:00Z', '2030-01-01T16:00:00Z', null, null, 1,
+    'phase2-cross-unit-01', 'phase2-correlation-cross-unit'
+  );
+  raise exception 'create for another tenant unit unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'UNIT_NOT_AUTHORIZED' then raise; end if;
+end $$;
+
+select (public.verified_access_create_resident_request(
+  '22222222-2222-4222-8222-222222222221', 'VISITOR', null, null,
+  '2030-01-01T15:00:00Z', '2030-01-01T16:00:00Z',
+  'Synthetic visit', 'Synthetic operation', 2,
+  'phase2-create-000001', 'phase2-correlation-create-0001'
+)->>'requestId')::uuid as visitor_request_id \gset
+
+create temporary table phase2_test_ids (name text primary key, id uuid not null) on commit drop;
+insert into phase2_test_ids values ('visitor', :'visitor_request_id');
+
+do $$
+begin
+  if (select status from public.verified_access_requests where id = (select id from phase2_test_ids where name = 'visitor')) <> 'DRAFT' then
+    raise exception 'visitor request did not start DRAFT';
+  end if;
+  if (select count(*) from public.verified_access_participant_slots where request_id = (select id from phase2_test_ids where name = 'visitor') and status = 'OPEN') <> 2 then
+    raise exception 'visitor slots were not created OPEN';
+  end if;
+  if (select array_agg(slot_number order by slot_number) from public.verified_access_participant_slots where request_id = (select id from phase2_test_ids where name = 'visitor')) <> array[1,2] then
+    raise exception 'visitor slots are not numbered 1..N';
+  end if;
+  if exists (select 1 from public.verified_access_participants where request_id = (select id from phase2_test_ids where name = 'visitor')) then
+    raise exception 'Phase 2 created a participant';
+  end if;
+end $$;
+
+select (public.verified_access_create_resident_request(
+  '22222222-2222-4222-8222-222222222221', 'VISITOR', null, null,
+  '2030-01-01T15:00:00Z', '2030-01-01T16:00:00Z',
+  'Synthetic visit', 'Synthetic operation', 2,
+  'phase2-create-000001', 'phase2-correlation-retry-0001'
+)->>'requestId')::uuid as visitor_retry_id \gset
+
+insert into phase2_test_ids values ('visitor_retry', :'visitor_retry_id');
+
+do $$ begin
+  if (select id from phase2_test_ids where name = 'visitor') <>
+     (select id from phase2_test_ids where name = 'visitor_retry') then
+    raise exception 'idempotent retry returned a different request';
+  end if;
+  if (select count(*) from public.verified_access_requests where requested_by_user_id = '33333333-2222-4222-8222-222222222221') <> 1 then
+    raise exception 'idempotent retry duplicated request';
+  end if;
+end $$;
+
+do $$
+begin
+  perform public.verified_access_create_resident_request(
+    '22222222-2222-4222-8222-222222222221', 'VISITOR', null, null,
+    '2030-01-01T15:00:00Z', '2030-01-01T17:00:00Z', null, null, 2,
+    'phase2-create-000001', 'phase2-correlation-conflict'
+  );
+  raise exception 'fingerprint conflict unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'IDEMPOTENCY_CONFLICT' then raise; end if;
+end $$;
+
+select (public.verified_access_create_resident_request(
+  '22222222-2222-4222-8222-222222222221', 'SERVICE_PROVIDER', 'OTHER', 'Synthetic service',
+  '2030-01-02T15:00:00Z', '2030-01-02T16:00:00Z', null, null, 1,
+  'phase2-service-00001', 'phase2-correlation-service'
+)->>'requestId')::uuid as service_request_id \gset
+
+insert into phase2_test_ids values ('service', :'service_request_id');
+
+do $$
+begin
+  perform public.verified_access_create_resident_request(
+    '22222222-2222-4222-8222-222222222221', 'SERVICE_PROVIDER', 'OTHER', null,
+    '2030-01-04T15:00:00Z', '2030-01-04T16:00:00Z', null, null, 1,
+    'phase2-description-01', 'phase2-correlation-description'
+  );
+  raise exception 'required service description unexpectedly omitted';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'SERVICE_TYPE_NOT_AVAILABLE' then raise; end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from public.verified_access_service_request_details d
+    where d.request_id = (select id from phase2_test_ids where name = 'service') and d.other_description = 'Synthetic service'
+  ) then raise exception 'service detail missing'; end if;
+end $$;
+
+select (public.verified_access_create_resident_request(
+  '22222222-2222-4222-8222-222222222221', 'VISITOR', null, null,
+  '2030-01-05T15:00:00Z', '2030-01-05T16:00:00Z', null, null, 1,
+  'phase2-slot-state-01', 'phase2-correlation-slot-state'
+)->>'requestId')::uuid as slot_state_request_id \gset
+
+insert into phase2_test_ids values ('slot_state', :'slot_state_request_id');
+
+update public.verified_access_participant_slots
+set status = 'RESERVED', claimed_at = now(), updated_at = now()
+where request_id = :'slot_state_request_id'::uuid and slot_number = 1;
+
+do $$
+begin
+  perform public.verified_access_cancel_resident_request(
+    (select id from phase2_test_ids where name = 'slot_state'),
+    'phase2-cancel-slot-01', 'RESIDENT_CANCELLED', 'phase2-correlation-cancel-slot'
+  );
+  raise exception 'cancel with a non-OPEN slot unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'REQUEST_STATE_CONFLICT' then raise; end if;
+end $$;
+
+do $$
+declare
+  v_fingerprint text;
+begin
+  v_fingerprint := public.verified_access_phase2_fingerprint(jsonb_build_object(
+    'accessEndsAt', '2030-01-03T16:00:00.000000Z',
+    'accessStartsAt', '2030-01-03T15:00:00.000000Z',
+    'operationalNote', null,
+    'participantSlots', 1,
+    'purpose', null,
+    'requestType', 'VISITOR',
+    'serviceDescription', null,
+    'serviceTypeCode', null,
+    'unitId', '22222222-2222-4222-8222-222222222221'::uuid
+  ));
+  insert into public.verified_access_request_commands (
+    condominium_id, actor_user_id, command_type, idempotency_key, input_fingerprint, status
+  ) values (
+    '11111111-2222-4222-8222-222222222221', '33333333-2222-4222-8222-222222222221',
+    'CREATE_REQUEST', 'phase2-processing-001', v_fingerprint, 'PROCESSING'
+  );
+  begin
+    perform public.verified_access_create_resident_request(
+      '22222222-2222-4222-8222-222222222221', 'VISITOR', null, null,
+      '2030-01-03T15:00:00Z', '2030-01-03T16:00:00Z', null, null, 1,
+      'phase2-processing-001', 'phase2-correlation-processing'
+    );
+    raise exception 'processing command unexpectedly succeeded';
+  exception when sqlstate 'P0001' then
+    if sqlerrm <> 'COMMAND_IN_PROGRESS' then raise; end if;
+  end;
+end $$;
+
+select public.verified_access_cancel_resident_request(
+  :'visitor_request_id', 'phase2-cancel-000001', 'RESIDENT_CANCELLED', 'phase2-correlation-cancel'
+) as cancel_result \gset
+
+select public.verified_access_cancel_resident_request(
+  :'visitor_request_id', 'phase2-cancel-000001', 'RESIDENT_CANCELLED', 'phase2-correlation-cancel-retry'
+) as cancel_retry_result \gset
+
+create temporary table phase2_test_results (name text primary key, result jsonb not null) on commit drop;
+insert into phase2_test_results values
+  ('cancel', :'cancel_result'::jsonb),
+  ('cancel_retry', :'cancel_retry_result'::jsonb);
+
+do $$ begin
+  if (select result from phase2_test_results where name = 'cancel') <>
+     (select result from phase2_test_results where name = 'cancel_retry') then
+    raise exception 'cancel retry did not return prior result';
+  end if;
+  if (select status from public.verified_access_requests where id = (select id from phase2_test_ids where name = 'visitor')) <> 'CANCELLED' then
+    raise exception 'request not cancelled';
+  end if;
+  if exists (select 1 from public.verified_access_participant_slots where request_id = (select id from phase2_test_ids where name = 'visitor') and status <> 'CANCELLED') then
+    raise exception 'open slots not cancelled';
+  end if;
+end $$;
+
+select set_config('request.jwt.claim.sub', '33333333-2222-4222-8222-222222222222', true);
+do $$ begin
+  perform public.verified_access_get_resident_request((select id from phase2_test_ids where name = 'visitor'));
+  raise exception 'cross-tenant get unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'REQUEST_NOT_FOUND' then raise; end if;
+end $$;
+
+select set_config('request.jwt.claim.sub', '33333333-2222-4222-8222-222222222221', true);
+select set_config('app.verified_access_policy_rpc', 'activate', true);
+update public.verified_access_policies
+set status = 'RETIRED', retired_at = now()
+where id = '44444444-2222-4222-8222-222222222221';
+select set_config('app.verified_access_policy_rpc', '', true);
+
+do $$ begin
+  if (select count(*) from public.verified_access_list_resident_requests()) < 2 then
+    raise exception 'historical list requires no active policy';
+  end if;
+  if public.verified_access_get_resident_request((select id from phase2_test_ids where name = 'visitor')) is null then
+    raise exception 'historical get requires no active policy';
+  end if;
+end $$;
+
+do $$
+begin
+  perform public.verified_access_create_resident_request(
+    '22222222-2222-4222-8222-222222222221', 'VISITOR', null, null,
+    '2030-01-06T15:00:00Z', '2030-01-06T16:00:00Z', null, null, 1,
+    'phase2-no-policy-001', 'phase2-correlation-no-policy-create'
+  );
+  raise exception 'create without ACTIVE policy unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'POLICY_NOT_AVAILABLE' then raise; end if;
+end $$;
+
+do $$
+begin
+  perform public.verified_access_cancel_resident_request(
+    (select id from phase2_test_ids where name = 'service'),
+    'phase2-no-policy-can', 'RESIDENT_CANCELLED', 'phase2-correlation-no-policy-cancel'
+  );
+  raise exception 'cancel without ACTIVE policy unexpectedly succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm <> 'POLICY_NOT_AVAILABLE' then raise; end if;
+end $$;
+
+do $$ begin
+  if not exists (
+    select 1 from public.verified_access_audit_events
+    where aggregate_id = (select id from phase2_test_ids where name = 'visitor')
+      and actor_user_id = '33333333-2222-4222-8222-222222222221'
+      and event_type in ('VERIFIED_ACCESS_REQUEST_CREATED', 'VERIFIED_ACCESS_REQUEST_CANCELLED')
+  ) then raise exception 'audit actor/event missing'; end if;
+  if exists (
+    select 1 from public.verified_access_audit_events
+    where aggregate_id in (select id from phase2_test_ids)
+      and upper(metadata::text) ~ '(SYNTHETIC VISIT|SYNTHETIC OPERATION|SYNTHETIC SERVICE)'
+  ) then raise exception 'free text leaked to audit'; end if;
+  if exists (
+    select 1 from public.verified_access_outbox_events
+    where aggregate_id in (select id from phase2_test_ids)
+      and upper(payload::text) ~ '(SYNTHETIC VISIT|SYNTHETIC OPERATION|SYNTHETIC SERVICE)'
+  ) then raise exception 'free text leaked to outbox'; end if;
+end $$;
+
+update public.condominium_features
+set enabled = false
+where condominium_id in ('11111111-2222-4222-8222-222222222221', '11111111-2222-4222-8222-222222222222')
+  and feature_key = 'VERIFIED_ACCESS';
+
+rollback;
+
+\echo 'VERIFIED_ACCESS_PHASE_2_INTEGRATION_OK'
