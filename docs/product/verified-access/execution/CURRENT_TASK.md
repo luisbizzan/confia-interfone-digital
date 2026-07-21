@@ -2,27 +2,23 @@
 
 ## Estado
 
-A Fase 1D foi implementada e validada no PR draft #5.
+- A Fase 2 foi implementada e validada no PR draft #6.
+- A correção retroativa de compatibilidade do workflow da Fase 1A foi validada.
+- O merge depende de revisão e ação humana.
+- A Fase 3 não está autorizada.
+- As migrations da Fase 2 existem somente no repositório e não foram aplicadas
+  remotamente.
+- `VERIFIED_ACCESS` permanece desligada.
 
-```text
-PR: https://github.com/luisbizzan/confia-interfone-digital/pull/5
-Head aprovado: b3dcf005eb0438d6cad724de95eba2aa51d6f84b
-Estado do PR: draft, aguardando decisão humana de merge
-```
+## Próximo contrato
 
-O escopo entregue contém somente contratos internos de providers, fakes
-determinísticos e testes Deno. A evidência completa está em
-`docs/verified-access-phase-1d-validation.md`.
+Não existe contrato técnico ativo. Aguardar novo contrato versionado antes de
+alterar código, migrations, funções, workflows, testes ou documentação de fase.
 
-## Segurança e operação
+## Limites preservados
 
-- Nenhuma migration Supabase remota foi executada.
-- Todas as feature flags permanecem desligadas.
-- Nenhuma integração externa real, credencial, secret ou PII foi usada.
-- `persons` e o app Expo permanecem inalterados.
-- Nenhuma implementação da Fase 2 está autorizada.
-
-## Próximo passo
-
-Aguardar decisão humana sobre o merge do PR #5 e um novo contrato versionado.
-Este arquivo não autoriza implementação adicional.
+- não executar migration remota;
+- não habilitar feature;
+- não iniciar a Fase 3;
+- não alterar `persons`, app Expo ou comportamento funcional do admin-web;
+- não fazer merge, marcar o PR como pronto ou usar force-push.

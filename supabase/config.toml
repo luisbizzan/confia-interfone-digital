@@ -55,3 +55,28 @@ entrypoint = "./functions/admin-create-unit-member/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/admin-get-condominium/index.ts"
+
+[functions.verified-access-service-types-list]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-service-types-list/index.ts"
+
+[functions.verified-access-request-create]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-request-create/index.ts"
+
+[functions.verified-access-request-list]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-request-list/index.ts"
+
+[functions.verified-access-request-get]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-request-get/index.ts"
+
+[functions.verified-access-request-cancel]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-request-cancel/index.ts"

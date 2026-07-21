@@ -9,9 +9,10 @@ Este diretório é a fonte de verdade de produto, domínio, segurança e execuç
 | [`DECISIONS.md`](DECISIONS.md) | Decisões vinculantes de produto e arquitetura |
 | [`ROADMAP.md`](ROADMAP.md) | Estado das fases e gates |
 | [`execution/CURRENT_TASK.md`](execution/CURRENT_TASK.md) | Contrato exato da execução autorizada |
-| [`phases/PHASE_1B.md`](phases/PHASE_1B.md) | Escopo e critérios da fase atual |
+| [`phases/PHASE_1B.md`](phases/PHASE_1B.md) | Fundação inerte da Rede Confia entregue na Fase 1B |
 | [`phases/PHASE_1C.md`](phases/PHASE_1C.md) | Plano e escopo entregue da Fase 1C |
 | [`phases/PHASE_1D.md`](phases/PHASE_1D.md) | Plano dos contratos e providers fake da Fase 1D |
+| [`phases/PHASE_2.md`](phases/PHASE_2.md) | Plano das solicitações autenticadas do morador |
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Especificação funcional e técnica completa |
 | [`SECURITY_AND_PRIVACY.md`](SECURITY_AND_PRIVACY.md) | Segurança, LGPD, retenção, revisão e contestação |
 | [`INTEGRATIONS.md`](INTEGRATIONS.md) | Estratégia de providers e integrações |
@@ -22,7 +23,7 @@ Este diretório é a fonte de verdade de produto, domínio, segurança e execuç
 ```text
 DECISIONS.md
     > execution/CURRENT_TASK.md
-    > plano da fase atual
+    > plano da fase em execução, quando autorizado
     > SPECIFICATION.md
     > documentos de referência/históricos
 ```
@@ -36,7 +37,9 @@ DECISIONS.md
 - Commit da Fase 1B: `957b01351f412ad75e353e99643cbe99446f9bff`.
 - Fase 1C — invariantes, policies, audit e outbox: mergeada na `main`.
 - Commit da Fase 1C: `f2f5296882df158481e44ea604a60b4e5bda2fce`.
-- Fase 1D — planejada, em revisão e não autorizada para implementação.
+- Fase 1D — mergeada na `main`.
+- Commit da Fase 1D: `4284085959e185892f00c77dd89138838ba1dcdb`.
+- Fase 2 — planejada, em revisão e não autorizada para implementação.
 - Nenhuma migration do Acesso Verificado foi aplicada ao Supabase remoto.
 - Todas as features permanecem desligadas.
 - O deploy Vercel do merge é independente das migrations Supabase.

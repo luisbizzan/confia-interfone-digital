@@ -8,8 +8,8 @@ Atualizado em 20 de julho de 2026.
 | Fase 1A — fundação local | Mergeada | `84077aa18731f83d6e8cfa505b7d10dec2b89026` |
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
-| Fase 1D — contratos e providers fake | Implementada / validada / aguardando merge | PR draft #5, head `b3dcf005eb0438d6cad724de95eba2aa51d6f84b` |
-| Fase 2 — solicitações do morador | Não iniciada | depende da Fase 1 |
+| Fase 1D — contratos e providers fake | Mergeada | `4284085959e185892f00c77dd89138838ba1dcdb` |
+| Fase 2 — solicitações do morador | Autorizada / aguardando execução | contrato `execution/CURRENT_TASK.md` |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
 | Fase 5 — identidade real | Bloqueada | POC, contrato e privacidade |
@@ -79,8 +79,8 @@ remotamente. As features permanecem desligadas.
 
 ## Fase 1D
 
-A Fase 1D foi implementada e validada no PR draft #5, com head aprovado
-`b3dcf005eb0438d6cad724de95eba2aa51d6f84b`:
+A Fase 1D foi mergeada na `main` em 20 de julho de 2026 pelo squash commit
+`4284085959e185892f00c77dd89138838ba1dcdb`:
 
 - contratos internos para identity, background check e messaging;
 - fakes sintéticos, determinísticos e isolados por instância e condomínio;
@@ -89,8 +89,26 @@ A Fase 1D foi implementada e validada no PR draft #5, com head aprovado
 - nenhuma rede, filesystem, Supabase, SDK externo, secret ou PII;
 - nenhuma decisão de domínio, integração real ou feature habilitada.
 
-O PR permanece draft e aguarda decisão humana de merge. A Fase 2 não foi
-iniciada nem autorizada.
+Os 28 testes Deno foram aprovados. Nenhuma migration remota foi executada e
+as features permanecem desligadas.
+
+## Fase 2
+
+O plano documental das solicitações autenticadas do morador está em:
+
+```text
+docs/product/verified-access/phases/PHASE_2.md
+```
+
+Stage: `Autorizada / aguardando execução`.
+
+Nenhuma migration, RPC, Edge Function, API, UI ou teste técnico da Fase 2 foi
+criado nesta autorização documental. Os blockers `P2-BLOCKER-01` a
+`P2-BLOCKER-05` foram resolvidos no plano e o gate
+`P2-GATE-EXECUTION-CONTRACT` foi satisfeito pelo contrato executável
+`execution/CURRENT_TASK.md`.
+
+A Fase 3 permanece não iniciada.
 
 ## Migration drift
 
