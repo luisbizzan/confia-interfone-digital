@@ -9,7 +9,7 @@ Atualizado em 20 de julho de 2026.
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
 | Fase 1D — contratos e providers fake | Mergeada | `4284085959e185892f00c77dd89138838ba1dcdb` |
-| Fase 2 — solicitações do morador | Planejada / em revisão / não autorizada | plano `phases/PHASE_2.md` |
+| Fase 2 — solicitações do morador | Planejada / gate documental final / não autorizada | plano `phases/PHASE_2.md` |
 | Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
 | Fase 5 — identidade real | Bloqueada | POC, contrato e privacidade |
@@ -100,11 +100,12 @@ O plano documental das solicitações autenticadas do morador está em:
 docs/product/verified-access/phases/PHASE_2.md
 ```
 
-Stage: `Planejada / em revisão / não autorizada`.
+Stage: `Planejada / gate documental final / não autorizada`.
 
 Nenhuma migration, RPC, Edge Function, API, UI ou teste técnico da Fase 2 foi
-criado. A implementação depende de novo contrato versionado e da resolução dos
-blockers documentados no plano.
+criado. Os blockers `P2-BLOCKER-01` a `P2-BLOCKER-05` foram resolvidos apenas no
+plano. A implementação depende de revisão humana e do gate pendente
+`P2-GATE-EXECUTION-CONTRACT`, com novo contrato versionado.
 
 ## Migration drift
 
