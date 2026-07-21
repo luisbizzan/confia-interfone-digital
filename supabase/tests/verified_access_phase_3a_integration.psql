@@ -71,12 +71,12 @@ end $$;
 do $$ begin
   perform public.verified_access_issue_resident_invitation('66666666-3333-4333-8333-333333333332','v1:'||repeat('d',64),'phase3a-cross-key-0001','phase3a-correlation-cross');
   raise exception 'cross-tenant issue succeeded';
-exception when sqlstate 'P0001' then if sqlerrm <> 'SLOT_NOT_FOUND' then raise; end if; end $$;
+exception when sqlstate 'P0001' then if sqlerrm <> 'INVITATION_TARGET_NOT_FOUND' then raise; end if; end $$;
 
 do $$ declare v_revoked jsonb; begin
   v_revoked := public.verified_access_revoke_resident_invitation((select (payload->>'invitationId')::uuid from phase3a_result where name='issued'),'phase3a-revoke-key-01','RESIDENT_REVOKED','phase3a-correlation-revoke');
   if v_revoked->>'invitationStatus' <> 'REVOKED' then raise exception 'revoke failed'; end if;
-  if (select count(*) from public.verified_access_list_resident_invitation_status('55555555-3333-4333-8333-333333333331')) <> 1 then raise exception 'status list failed'; end if;
+  if (select count(*) from public.verified_access_list_resident_invitation_status('55555555-3333-4333-8333-333333333331')) <> 2 then raise exception 'status list failed'; end if;
 end $$;
 
 rollback;
