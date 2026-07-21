@@ -13,6 +13,7 @@ Este diretório é a fonte de verdade de produto, domínio, segurança e execuç
 | [`phases/PHASE_1C.md`](phases/PHASE_1C.md) | Plano e escopo entregue da Fase 1C |
 | [`phases/PHASE_1D.md`](phases/PHASE_1D.md) | Plano dos contratos e providers fake da Fase 1D |
 | [`phases/PHASE_2.md`](phases/PHASE_2.md) | Plano das solicitações autenticadas do morador |
+| [`phases/PHASE_3.md`](phases/PHASE_3.md) | Planejamento de convites e cadastro público |
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Especificação funcional e técnica completa |
 | [`SECURITY_AND_PRIVACY.md`](SECURITY_AND_PRIVACY.md) | Segurança, LGPD, retenção, revisão e contestação |
 | [`INTEGRATIONS.md`](INTEGRATIONS.md) | Estratégia de providers e integrações |
@@ -39,7 +40,10 @@ DECISIONS.md
 - Commit da Fase 1C: `f2f5296882df158481e44ea604a60b4e5bda2fce`.
 - Fase 1D — mergeada na `main`.
 - Commit da Fase 1D: `4284085959e185892f00c77dd89138838ba1dcdb`.
-- Fase 2 — planejada, em revisão e não autorizada para implementação.
+- Fase 2 — solicitações autenticadas do morador: mergeada na `main`.
+- Commit da Fase 2: `a464de1175ae924644cfc2aa71eab7f27cc61cd5`.
+- Fase 3 — convites e cadastro público: planejada, em revisão e não
+  autorizada para implementação.
 - Nenhuma migration do Acesso Verificado foi aplicada ao Supabase remoto.
 - Todas as features permanecem desligadas.
 - O deploy Vercel do merge é independente das migrations Supabase.

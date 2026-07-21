@@ -2,23 +2,25 @@
 
 ## Estado
 
-- A Fase 2 foi implementada e validada no PR draft #6.
-- A correção retroativa de compatibilidade do workflow da Fase 1A foi validada.
-- O merge depende de revisão e ação humana.
-- A Fase 3 não está autorizada.
-- As migrations da Fase 2 existem somente no repositório e não foram aplicadas
-  remotamente.
+- A Fase 2 foi mergeada na `main` pelo squash commit
+  `a464de1175ae924644cfc2aa71eab7f27cc61cd5`.
+- A Fase 3 está em planejamento e revisão documental.
+- A Fase 3 não está autorizada para implementação.
+- As migrations do Acesso Verificado permanecem somente no repositório.
 - `VERIFIED_ACCESS` permanece desligada.
 
 ## Próximo contrato
 
-Não existe contrato técnico ativo. Aguardar novo contrato versionado antes de
-alterar código, migrations, funções, workflows, testes ou documentação de fase.
+Não existe contrato técnico ativo. Aguardar decisões humanas sobre PII, base
+legal, privacy notice, retenção, token, rate limiting, página pública e divisão
+3A/3B/3C, seguidas de novo contrato versionado.
 
 ## Limites preservados
 
+- não criar migration, RPC, função, trigger, Edge Function, provider, página,
+  UI ou teste técnico;
 - não executar migration remota;
 - não habilitar feature;
-- não iniciar a Fase 3;
-- não alterar `persons`, app Expo ou comportamento funcional do admin-web;
+- não alterar `persons`, app Expo ou portaria;
+- não iniciar integração externa real;
 - não fazer merge, marcar o PR como pronto ou usar force-push.
