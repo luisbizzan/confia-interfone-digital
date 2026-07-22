@@ -100,3 +100,28 @@ entrypoint = "./functions/verified-access-invitation-revoke/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/verified-access-invitation-status-list/index.ts"
+
+[functions.verified-access-public-invitation-exchange]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-public-invitation-exchange/index.ts"
+
+[functions.verified-access-public-registration-get]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-public-registration-get/index.ts"
+
+[functions.verified-access-public-registration-start]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-public-registration-start/index.ts"
+
+[functions.verified-access-public-registration-submit]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-public-registration-submit/index.ts"
+
+[functions.verified-access-public-registration-status]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-public-registration-status/index.ts"
