@@ -2,7 +2,7 @@ import type {
   InvitationMessageInput,
   MessageDelivery,
   MessageDeliveryStatus,
-  ProviderReadContext,
+  MessagingProviderReadContext,
   StatusMessageInput,
 } from "./contracts.ts";
 import type { ProviderResult } from "./result.ts";
@@ -16,6 +16,6 @@ export interface MessagingProvider {
   ): Promise<ProviderResult<MessageDelivery>>;
   getDeliveryStatus(
     providerMessageId: string,
-    context: ProviderReadContext,
+    context: MessagingProviderReadContext,
   ): Promise<ProviderResult<MessageDeliveryStatus>>;
 }

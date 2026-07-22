@@ -4,6 +4,10 @@ Branch: `agent/verified-access-phase-2`
 
 PR: <https://github.com/luisbizzan/confia-interfone-digital/pull/6>
 
+Merge status: merged by squash on 21 July 2026.
+
+Squash commit: `a464de1175ae924644cfc2aa71eab7f27cc61cd5`
+
 Base: `4284085959e185892f00c77dd89138838ba1dcdb`
 
 Corrective gate initial SHA: `b77978aaa88a94e8d797765e4941d23d562b367b`
@@ -152,3 +156,5 @@ extend legacy full-stack rollback workflows in the same way.
 - `VERIFIED_ACCESS` remains disabled; rollback sentinels were local CI fixtures.
 - `CURRENT_TASK` is closed as `NO ACTIVE IMPLEMENTATION`; Phase 3 is not
   authorized.
+- Phase 2 is incorporated into `origin/main` at squash commit
+  `a464de1175ae924644cfc2aa71eab7f27cc61cd5`.

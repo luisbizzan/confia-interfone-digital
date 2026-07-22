@@ -1,6 +1,6 @@
 # Roadmap — Acesso Verificado
 
-Atualizado em 20 de julho de 2026.
+Atualizado em 21 de julho de 2026.
 
 | Fase | Estado | Evidência/Gate |
 |---|---|---|
@@ -9,8 +9,8 @@ Atualizado em 20 de julho de 2026.
 | Fase 1B — fundação inerte da Rede Confia | Mergeada | `957b01351f412ad75e353e99643cbe99446f9bff` |
 | Fase 1C — invariantes e operações restritas | Mergeada | `f2f5296882df158481e44ea604a60b4e5bda2fce` |
 | Fase 1D — contratos e providers fake | Mergeada | `4284085959e185892f00c77dd89138838ba1dcdb` |
-| Fase 2 — solicitações do morador | Autorizada / aguardando execução | contrato `execution/CURRENT_TASK.md` |
-| Fase 3 — convites e cadastro público | Não iniciada | tokens e criptografia |
+| Fase 2 — solicitações do morador | Mergeada | `a464de1175ae924644cfc2aa71eab7f27cc61cd5` |
+| Fase 3 — convites e cadastro público | Planejada / em revisão / não autorizada | `phases/PHASE_3.md` |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
 | Fase 5 — identidade real | Bloqueada | POC, contrato e privacidade |
 | Fases 6/7 — background | Bloqueadas | jurídico, POC e RBAC |
@@ -100,15 +100,15 @@ O plano documental das solicitações autenticadas do morador está em:
 docs/product/verified-access/phases/PHASE_2.md
 ```
 
-Stage: `Autorizada / aguardando execução`.
+Stage: `Mergeada`.
 
-Nenhuma migration, RPC, Edge Function, API, UI ou teste técnico da Fase 2 foi
-criado nesta autorização documental. Os blockers `P2-BLOCKER-01` a
-`P2-BLOCKER-05` foram resolvidos no plano e o gate
-`P2-GATE-EXECUTION-CONTRACT` foi satisfeito pelo contrato executável
-`execution/CURRENT_TASK.md`.
+Implementada e mergeada na `main` pelo squash commit
+`a464de1175ae924644cfc2aa71eab7f27cc61cd5`, com migrations locais, cinco RPCs
+autenticadas, cinco Edge Functions, idempotência persistente, audit/outbox
+sanitizados, testes, rollback, reaplicação e CI.
 
-A Fase 3 permanece não iniciada.
+A Fase 3 está planejada e em revisão documental. Não existe contrato técnico
+ativo e sua implementação não está autorizada.
 
 ## Migration drift
 

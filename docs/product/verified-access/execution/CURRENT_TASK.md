@@ -2,23 +2,14 @@
 
 ## Estado
 
-- A Fase 2 foi implementada e validada no PR draft #6.
-- A correção retroativa de compatibilidade do workflow da Fase 1A foi validada.
-- O merge depende de revisão e ação humana.
-- A Fase 3 não está autorizada.
-- As migrations da Fase 2 existem somente no repositório e não foram aplicadas
-  remotamente.
-- `VERIFIED_ACCESS` permanece desligada.
+- A Fase 3A foi implementada e validada na branch
+  `agent/verified-access-phase-3`.
+- Head técnico validado: `43de21a3f4b15206565e911cc4dcf60869597538`.
+- CI principal verde: `29871859260`.
+- O PR #7 permanece draft e aguarda revisão do PO.
+- As Fases 3B e 3C não estão autorizadas.
 
-## Próximo contrato
+## Próxima execução
 
-Não existe contrato técnico ativo. Aguardar novo contrato versionado antes de
-alterar código, migrations, funções, workflows, testes ou documentação de fase.
-
-## Limites preservados
-
-- não executar migration remota;
-- não habilitar feature;
-- não iniciar a Fase 3;
-- não alterar `persons`, app Expo ou comportamento funcional do admin-web;
-- não fazer merge, marcar o PR como pronto ou usar force-push.
+Aguardar novo contrato versionado e explícito do PO. Não há implementação
+ativa, migration remota autorizada ou feature autorizada para habilitação.
