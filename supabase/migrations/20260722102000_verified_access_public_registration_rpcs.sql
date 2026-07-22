@@ -256,7 +256,7 @@ begin
     returning id
   loop
     perform public.verified_access_write_audit_event(
-      v_invitation.condominium_id, 'PUBLIC', null, 'PUBLIC_SESSION',
+      v_invitation.condominium_id, 'SERVICE_ROLE', null, 'PUBLIC_SESSION',
       v_revoked_session_id, 'VERIFIED_ACCESS_PUBLIC_SESSION_REVOKED',
       'SESSION_ROTATED', p_correlation_id,
       jsonb_build_object('invitation_id', v_invitation.id, 'request_id', v_request.id)
@@ -293,7 +293,7 @@ begin
   from public.condominiums c where c.id = v_invitation.condominium_id;
 
   perform public.verified_access_write_audit_event(
-    v_invitation.condominium_id, 'PUBLIC', null, 'PUBLIC_SESSION', v_session.id,
+    v_invitation.condominium_id, 'SERVICE_ROLE', null, 'PUBLIC_SESSION', v_session.id,
     'VERIFIED_ACCESS_PUBLIC_SESSION_CREATED', 'INVITATION_EXCHANGED',
     p_correlation_id,
     jsonb_build_object('invitation_id', v_invitation.id, 'request_id', v_request.id)
@@ -443,7 +443,7 @@ begin
      set started_at=coalesce(started_at,now()), last_seen_at=now(), updated_at=now()
    where id=v_session.id returning * into v_session;
   perform public.verified_access_write_audit_event(
-    v_session.condominium_id,'PUBLIC',null,'PUBLIC_SESSION',v_session.id,
+    v_session.condominium_id,'SERVICE_ROLE',null,'PUBLIC_SESSION',v_session.id,
     'VERIFIED_ACCESS_REGISTRATION_STARTED','PUBLIC_REGISTRATION_STARTED',p_correlation_id,
     jsonb_build_object('invitation_id',v_session.invitation_id,'request_id',v_session.request_id)
   );
@@ -649,9 +649,9 @@ begin
      set status='COMPLETED',consumed_at=v_submitted_at,updated_at=v_submitted_at
    where id=v_invitation.id;
 
-  perform public.verified_access_write_audit_event(v_session.condominium_id,'PUBLIC',null,'PUBLIC_SESSION',v_session.id,'VERIFIED_ACCESS_REGISTRATION_SUBMITTED','REGISTRATION_SUBMITTED',p_correlation_id,jsonb_build_object('request_id',v_session.request_id,'invitation_id',v_session.invitation_id,'participant_id',v_participant_id));
-  perform public.verified_access_write_audit_event(v_session.condominium_id,'PUBLIC',null,'PARTICIPANT',v_participant_id,'VERIFIED_ACCESS_PARTICIPANT_CREATED','PUBLIC_REGISTRATION',p_correlation_id,jsonb_build_object('request_id',v_session.request_id,'invitation_id',v_session.invitation_id,'session_id',v_session.id));
-  perform public.verified_access_write_audit_event(v_session.condominium_id,'PUBLIC',null,'INVITATION',v_invitation.id,'VERIFIED_ACCESS_INVITATION_COMPLETED','REGISTRATION_SUBMITTED',p_correlation_id,jsonb_build_object('request_id',v_session.request_id,'participant_id',v_participant_id,'session_id',v_session.id));
+  perform public.verified_access_write_audit_event(v_session.condominium_id,'SERVICE_ROLE',null,'PUBLIC_SESSION',v_session.id,'VERIFIED_ACCESS_REGISTRATION_SUBMITTED','REGISTRATION_SUBMITTED',p_correlation_id,jsonb_build_object('request_id',v_session.request_id,'invitation_id',v_session.invitation_id,'participant_id',v_participant_id));
+  perform public.verified_access_write_audit_event(v_session.condominium_id,'SERVICE_ROLE',null,'PARTICIPANT',v_participant_id,'VERIFIED_ACCESS_PARTICIPANT_CREATED','PUBLIC_REGISTRATION',p_correlation_id,jsonb_build_object('request_id',v_session.request_id,'invitation_id',v_session.invitation_id,'session_id',v_session.id));
+  perform public.verified_access_write_audit_event(v_session.condominium_id,'SERVICE_ROLE',null,'INVITATION',v_invitation.id,'VERIFIED_ACCESS_INVITATION_COMPLETED','REGISTRATION_SUBMITTED',p_correlation_id,jsonb_build_object('request_id',v_session.request_id,'participant_id',v_participant_id,'session_id',v_session.id));
 
   perform public.verified_access_enqueue_outbox_event(v_session.condominium_id,'PUBLIC_SESSION',v_session.id,'VERIFIED_ACCESS_REGISTRATION_SUBMITTED','verified-access:command:'||v_command.id||':registration-submitted',jsonb_build_object('condominium_id',v_session.condominium_id,'request_id',v_session.request_id,'invitation_id',v_invitation.id,'session_id',v_session.id,'participant_id',v_participant_id,'status','COMPLETED','submitted_at',v_submitted_at,'event_code','VERIFIED_ACCESS_REGISTRATION_SUBMITTED'));
   perform public.verified_access_enqueue_outbox_event(v_session.condominium_id,'PARTICIPANT',v_participant_id,'VERIFIED_ACCESS_PARTICIPANT_CREATED','verified-access:command:'||v_command.id||':participant-created',jsonb_build_object('condominium_id',v_session.condominium_id,'request_id',v_session.request_id,'invitation_id',v_invitation.id,'session_id',v_session.id,'participant_id',v_participant_id,'status','SUBMITTED','event_code','VERIFIED_ACCESS_PARTICIPANT_CREATED'));

@@ -59,6 +59,7 @@ do $$ begin
   if (select status from public.verified_access_participant_slots where id='66666666-3333-4333-8333-333333333331') <> 'CLAIMED' then raise exception 'slot not claimed'; end if;
   if (select count(*) from public.verified_access_participants where request_id='55555555-3333-4333-8333-333333333331' and registration_status='SUBMITTED' and identity_status='SELF_DECLARED') <> 1 then raise exception 'participant not created once'; end if;
   if (select count(*) from public.verified_access_identity_profiles where condominium_id='11111111-3333-4333-8333-333333333331' and is_minor=false and cpf_tenant_hmac='v1:'||repeat('6',64)) <> 1 then raise exception 'protected profile absent'; end if;
+  if exists(select 1 from public.verified_access_audit_events where correlation_id like 'phase3b-%' and actor_type <> 'SERVICE_ROLE') then raise exception 'public registration audit actor is not service role'; end if;
   if exists(select 1 from public.verified_access_audit_events where correlation_id like 'phase3b-%' and (upper(metadata::text) ~ '(CPF|NAME|BIRTH|PHONE|TOKEN|PASSPORT|RNM)' or metadata::text like '%abababab%')) then raise exception 'PII leaked to audit'; end if;
   if exists(select 1 from public.verified_access_outbox_events where event_type like 'VERIFIED_ACCESS_%' and (upper(payload::text) ~ '(CPF|NAME|BIRTH|PHONE|TOKEN|PASSPORT|RNM)' or payload::text like '%abababab%')) then raise exception 'PII leaked to outbox'; end if;
 end $$;
