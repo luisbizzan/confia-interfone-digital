@@ -1,0 +1,35 @@
+\set ON_ERROR_STOP on
+begin;
+
+do $$
+declare v_proc record;
+begin
+  for v_proc in
+    select p.oid from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+    where n.nspname='public' and p.proname in (
+      'verified_access_public_exchange_invitation','verified_access_public_get_registration',
+      'verified_access_public_start_registration','verified_access_public_submit_registration',
+      'verified_access_public_registration_status'
+    )
+  loop
+    if has_function_privilege('anon',v_proc.oid,'EXECUTE')
+       or has_function_privilege('authenticated',v_proc.oid,'EXECUTE')
+       or not has_function_privilege('service_role',v_proc.oid,'EXECUTE') then
+      raise exception 'Phase 3B runtime ACL mismatch';
+    end if;
+  end loop;
+end $$;
+
+create role verified_access_phase3b_denied_test nologin;
+grant verified_access_phase3b_denied_test to postgres;
+set role verified_access_phase3b_denied_test;
+do $$
+begin
+  perform public.verified_access_public_registration_status('v1:'||repeat('a',64),'v1:'||repeat('b',64),'runtime-denied-test');
+  raise exception 'synthetic denied role unexpectedly executed RPC';
+exception when insufficient_privilege then null;
+end $$;
+reset role;
+revoke verified_access_phase3b_denied_test from postgres;
+drop role verified_access_phase3b_denied_test;
+commit;

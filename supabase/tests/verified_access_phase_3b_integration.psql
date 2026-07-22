@@ -1,0 +1,111 @@
+\set ON_ERROR_STOP on
+\set VERBOSITY terse
+begin;
+
+insert into public.roles(id,name) values ('13131313-3333-4333-8333-333333333333','VERIFIED_ACCESS_PHASE_3B_TEST_ROLE') on conflict(name) do update set name=excluded.name;
+insert into auth.users(id,instance_id,aud,role,email,encrypted_password,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
+('33333333-3333-4333-8333-333333333331','00000000-0000-0000-0000-000000000000','authenticated','authenticated','phase3b@example.invalid','',now(),'{}','{}',now(),now()) on conflict(id) do nothing;
+insert into public.condominiums(id,name,document) values
+('11111111-3333-4333-8333-333333333331','Phase 3B Synthetic','P3B-A') on conflict(id) do nothing;
+insert into public.condominium_features(condominium_id,feature_key,enabled) values
+('11111111-3333-4333-8333-333333333331','VERIFIED_ACCESS',true) on conflict(condominium_id,feature_key) do update set enabled=excluded.enabled;
+insert into public.units(id,condominium_id,type,block,number) values
+('22222222-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','APARTMENT','A','301') on conflict(id) do nothing;
+insert into public.user_profiles(id,condominium_id,role_id) values
+('33333333-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','13131313-3333-4333-8333-333333333333') on conflict(id) do update set condominium_id=excluded.condominium_id,role_id=excluded.role_id;
+insert into public.unit_members(condominium_id,unit_id,user_id,active_for_calls,member_type) values
+('11111111-3333-4333-8333-333333333331','22222222-3333-4333-8333-333333333331','33333333-3333-4333-8333-333333333331',false,'RESIDENT') on conflict(unit_id,user_id) do nothing;
+insert into public.verified_access_policies(id,condominium_id,version,status,visitor_identity_mode,service_identity_mode,visitor_background_mode,service_background_mode,max_notice_days,content_checksum) values
+('44444444-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331',1,'ACTIVE','DISABLED','DISABLED','DISABLED','DISABLED',3650,repeat('3',64));
+insert into public.verified_access_requests(id,condominium_id,unit_id,requested_by_user_id,request_type,status,starts_at,ends_at,timezone,participant_limit,policy_id,policy_version) values
+('55555555-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','22222222-3333-4333-8333-333333333331','33333333-3333-4333-8333-333333333331','VISITOR','INVITATIONS_PENDING',now()+interval '1 day',now()+interval '2 days','UTC',2,'44444444-3333-4333-8333-333333333331',1);
+insert into public.verified_access_participant_slots(id,condominium_id,request_id,slot_number,status) values
+('66666666-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','55555555-3333-4333-8333-333333333331',1,'OPEN'),
+('66666666-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333331','55555555-3333-4333-8333-333333333331',2,'OPEN');
+insert into public.verified_access_invitations(id,condominium_id,request_id,participant_slot_id,token_hash,status,expires_at,created_by_user_id) values
+('77777777-3333-4333-8333-333333333331','11111111-3333-4333-8333-333333333331','55555555-3333-4333-8333-333333333331','66666666-3333-4333-8333-333333333331','v1:'||repeat('a',64),'PENDING',now()+interval '1 day','33333333-3333-4333-8333-333333333331'),
+('77777777-3333-4333-8333-333333333332','11111111-3333-4333-8333-333333333331','55555555-3333-4333-8333-333333333331','66666666-3333-4333-8333-333333333332','v1:'||repeat('b',64),'PENDING',now()+interval '1 day','33333333-3333-4333-8333-333333333331');
+
+create temporary table phase3b_result(name text primary key,payload jsonb) on commit drop;
+insert into phase3b_result values ('exchange',public.verified_access_public_exchange_invitation(
+  'v1:'||repeat('a',64),'v1:'||repeat('c',64),'exchange-key-000001','v1:'||repeat('d',64),
+  'v1:'||repeat('e',64),'v1:'||repeat('f',64),'phase3b-correlation-exchange'));
+
+do $$ begin
+  if (select payload->>'sessionStatus' from phase3b_result where name='exchange') <> 'ACTIVE' then raise exception 'exchange failed'; end if;
+  if (select count(*) from public.verified_access_public_sessions where invitation_id='77777777-3333-4333-8333-333333333331' and status='ACTIVE') <> 1 then raise exception 'active session cardinality failed'; end if;
+  if (select status from public.verified_access_invitations where id='77777777-3333-4333-8333-333333333331') <> 'OPENED' then raise exception 'exchange did not materialize OPENED'; end if;
+  if exists(select 1 from public.verified_access_public_sessions where session_token_hash not like 'v1:%') then raise exception 'raw session persisted'; end if;
+  if exists(select 1 from public.verified_access_public_sessions where expires_at > created_at+interval '30 minutes 5 seconds') then raise exception 'session exceeds absolute TTL'; end if;
+  if exists(select 1 from public.verified_access_participants where request_id='55555555-3333-4333-8333-333333333331') then raise exception 'exchange created participant'; end if;
+end $$;
+
+insert into phase3b_result values ('start',public.verified_access_public_start_registration(
+  'v1:'||repeat('c',64),'start-key-00000001','v1:'||repeat('1',64),'v1:'||repeat('2',64),'phase3b-correlation-start'));
+do $$ begin
+  if (select started_at is null from public.verified_access_public_sessions where session_token_hash='v1:'||repeat('c',64)) then raise exception 'start timestamp absent'; end if;
+  if (select status from public.verified_access_public_sessions where session_token_hash='v1:'||repeat('c',64)) <> 'ACTIVE' then raise exception 'start changed session state'; end if;
+  if exists(select 1 from public.verified_access_identity_profiles where condominium_id='11111111-3333-4333-8333-333333333331') then raise exception 'start persisted PII'; end if;
+end $$;
+
+insert into phase3b_result values ('submit',public.verified_access_public_submit_registration(
+  'v1:'||repeat('c',64),'submit-key-0000001','v1:'||repeat('3',64),'v1:'||repeat('4',64),'v1:'||repeat('5',64),
+  decode(repeat('ab',32),'hex'),decode(repeat('bc',32),'hex'),'CPF',decode(repeat('cd',32),'hex'),'v1:'||repeat('6',64),
+  null,null,null,null,null,false,null,null,'dev-provisional-v1','dev-provisional-v1',1,1,'phase3b-correlation-submit'));
+
+do $$ begin
+  if (select status from public.verified_access_public_sessions where session_token_hash='v1:'||repeat('c',64)) <> 'COMPLETED' then raise exception 'session not completed'; end if;
+  if (select status from public.verified_access_invitations where id='77777777-3333-4333-8333-333333333331') <> 'COMPLETED' then raise exception 'invitation not completed'; end if;
+  if (select status from public.verified_access_participant_slots where id='66666666-3333-4333-8333-333333333331') <> 'CLAIMED' then raise exception 'slot not claimed'; end if;
+  if (select count(*) from public.verified_access_participants where request_id='55555555-3333-4333-8333-333333333331' and registration_status='SUBMITTED' and identity_status='SELF_DECLARED') <> 1 then raise exception 'participant not created once'; end if;
+  if (select count(*) from public.verified_access_identity_profiles where condominium_id='11111111-3333-4333-8333-333333333331' and is_minor=false and cpf_tenant_hmac='v1:'||repeat('6',64)) <> 1 then raise exception 'protected profile absent'; end if;
+  if exists(select 1 from public.verified_access_audit_events where correlation_id like 'phase3b-%' and (upper(metadata::text) ~ '(CPF|NAME|BIRTH|PHONE|TOKEN|PASSPORT|RNM)' or metadata::text like '%abababab%')) then raise exception 'PII leaked to audit'; end if;
+  if exists(select 1 from public.verified_access_outbox_events where event_type like 'VERIFIED_ACCESS_%' and (upper(payload::text) ~ '(CPF|NAME|BIRTH|PHONE|TOKEN|PASSPORT|RNM)' or payload::text like '%abababab%')) then raise exception 'PII leaked to outbox'; end if;
+end $$;
+
+do $$ declare v_replay jsonb; begin
+  v_replay:=public.verified_access_public_submit_registration(
+    'v1:'||repeat('c',64),'submit-key-0000001','v1:'||repeat('3',64),'v1:'||repeat('4',64),'v1:'||repeat('5',64),
+    decode(repeat('ab',32),'hex'),decode(repeat('bc',32),'hex'),'CPF',decode(repeat('cd',32),'hex'),'v1:'||repeat('6',64),
+    null,null,null,null,null,false,null,null,'dev-provisional-v1','dev-provisional-v1',1,1,'phase3b-correlation-replay');
+  if v_replay->>'registrationStatus'<>'SUBMITTED' then raise exception 'submit replay failed'; end if;
+  if (select count(*) from public.verified_access_participants where request_id='55555555-3333-4333-8333-333333333331')<>1 then raise exception 'submit replay duplicated participant'; end if;
+end $$;
+
+insert into phase3b_result values ('exchange-two',public.verified_access_public_exchange_invitation(
+  'v1:'||repeat('b',64),'v1:'||repeat('7',64),'exchange-key-000002','v1:'||repeat('8',64),
+  'v1:'||repeat('9',64),'v1:'||repeat('0',64),'phase3b-correlation-exchange-two'));
+select set_config('request.jwt.claim.sub','33333333-3333-4333-8333-333333333331',true);
+insert into phase3b_result values ('resend-opened',public.verified_access_resend_resident_invitation(
+  '77777777-3333-4333-8333-333333333332','v1:'||repeat('a',63)||'b',
+  'phase3b-resend-key-01','phase3b-correlation-resend-opened'));
+do $$ begin
+  if (select payload->>'invitationStatus' from phase3b_result where name='resend-opened')<>'PENDING' then raise exception 'Phase 3A resend rejected OPENED'; end if;
+  if (select status from public.verified_access_public_sessions where session_token_hash='v1:'||repeat('7',64))<>'REVOKED' then raise exception 'invitation token rotation did not revoke session'; end if;
+  begin
+    update public.verified_access_public_sessions set status='ACTIVE',revoked_at=null where session_token_hash='v1:'||repeat('7',64);
+    raise exception 'terminal session transition succeeded';
+  exception when sqlstate 'P0001' then
+    if sqlerrm<>'PUBLIC_SESSION_STATUS_TRANSITION_INVALID' then raise; end if;
+  end;
+end $$;
+
+do $$ begin
+  update public.condominium_features set enabled=false where condominium_id='11111111-3333-4333-8333-333333333331' and feature_key='VERIFIED_ACCESS';
+  perform public.verified_access_public_exchange_invitation('v1:'||repeat('a',63)||'b','v1:'||repeat('f',63)||'e','exchange-key-000003','v1:'||repeat('e',63)||'d','v1:'||repeat('d',63)||'c','v1:'||repeat('c',63)||'b','phase3b-feature-disabled');
+  raise exception 'feature-disabled exchange succeeded';
+exception when sqlstate 'P0001' then
+  if sqlerrm<>'FEATURE_DISABLED' then raise; end if;
+end $$;
+
+insert into phase3b_result values ('exchange-three',public.verified_access_public_exchange_invitation(
+  'v1:'||repeat('a',63)||'b','v1:'||repeat('b',63)||'c','exchange-key-000004','v1:'||repeat('c',63)||'d',
+  'v1:'||repeat('d',63)||'e','v1:'||repeat('e',63)||'f','phase3b-correlation-exchange-three'));
+insert into phase3b_result values ('revoke-opened',public.verified_access_revoke_resident_invitation(
+  '77777777-3333-4333-8333-333333333332','phase3b-revoke-key-01','RESIDENT_REVOKED','phase3b-correlation-revoke-opened'));
+do $$ begin
+  if (select payload->>'invitationStatus' from phase3b_result where name='revoke-opened')<>'REVOKED' then raise exception 'Phase 3A revoke rejected OPENED'; end if;
+  if (select status from public.verified_access_public_sessions where session_token_hash='v1:'||repeat('b',63)||'c')<>'REVOKED' then raise exception 'resident revoke did not revoke public session'; end if;
+end $$;
+
+rollback;
