@@ -2,12 +2,11 @@
 
 ## 1. Status e autoridade
 
-Stage: `Planejada / em revisão humana / não autorizada`.
+Stage: `Autorizada / em execução`.
 
-Este documento fecha uma proposta técnica executável para revisão. Ele não
-autoriza migration, RPC, Edge Function, aplicação web, tratamento de PII,
-feature ou deploy. A execução futura depende de um novo contrato versionado em
-`execution/CURRENT_TASK.md` e da resolução dos blockers da seção 20.
+Este documento contém o contrato técnico autorizado pelo PO em 22 de julho de
+2026. A execução permanece limitada pela allowlist de
+`execution/CURRENT_TASK.md`; feature e migrations remotas continuam proibidas.
 
 As decisões desta fase sobre base legal, textos jurídicos, retenção definitiva,
 menores, domínio e chaves são propostas. Somente aprovação humana competente
@@ -44,7 +43,7 @@ operação da Rede Confia nesta fase.
 Não reutilizar `persons`. Não criar uma taxonomia paralela de participante,
 slot, request ou convite.
 
-## 4. Decisões propostas para revisão humana
+## 4. Decisões aprovadas para desenvolvimento local
 
 1. Nome completo é obrigatório.
 2. CPF é obrigatório para brasileiros maiores de idade.
@@ -101,14 +100,12 @@ remota, feature habilitada e alteração de `persons`.
 
 1. O link entrega o token no fragmento da URL, como já faz o preview fake. A
    aplicação remove o fragmento imediatamente com `history.replaceState`.
-2. O navegador gera com Web Crypto um session token candidato de 32 bytes,
-   mantém o valor apenas em memória e o envia com o convite ao
-   `verified-access-public-invitation-exchange`. O Edge envia ao banco somente
-   os hashes versionados e cria a sessão curta.
+2. O Edge gera com Web Crypto um session token de 32 bytes, envia ao banco
+   somente o hash versionado e devolve o valor bruto uma única vez.
 3. O convite passa de `PENDING` ou `SENT` para `OPENED`; o slot permanece
    `OPEN`. A resposta contém apenas contexto mínimo e o canal de sessão.
-4. `registration-get` recupera o contexto mínimo. `registration-start` muda a
-   sessão de `ACTIVE` para `STARTED`, sem gravar PII.
+4. `registration-get` recupera o contexto mínimo. `registration-start` mantém
+   a sessão `ACTIVE` e registra `started_at`, sem gravar PII.
 5. O formulário fica apenas em memória no navegador. Refresh perde o rascunho;
    retomada persistente de PII exige decisão futura explícita.
 6. `registration-submit` valida, cifra e fingerprinta no Edge antes da RPC e
@@ -127,15 +124,14 @@ sempre derivados no servidor.
 Estados propostos:
 
 ```text
-ACTIVE -> STARTED -> COMPLETED
+ACTIVE -> COMPLETED
 ACTIVE -> REVOKED | EXPIRED
-STARTED -> REVOKED | EXPIRED
 ```
 
-`COMPLETED`, `REVOKED` e `EXPIRED` são finais. Repetição idempotente de submit
-retorna o resultado já concluído sem nova escrita. Retry do exchange na mesma
-página reutiliza o session token candidato em memória; depois do primeiro
-exchange confirmado, o invitation token não inicia outra sessão.
+`COMPLETED`, `REVOKED` e `EXPIRED` são finais. START mantém `ACTIVE` e preenche
+`started_at`. Repetição idempotente de submit retorna o resultado já concluído
+sem nova escrita. Nova exchange válida revoga a sessão ativa anterior; perda da
+resposta exige nova exchange e rotação, nunca recuperação de token bruto.
 
 ### 8.2 Invitation
 
@@ -192,10 +188,9 @@ Tabela proposta: `verified_access_public_sessions`.
 | `completed_at timestamptz` | obrigatório somente em `COMPLETED` |
 | `created_at`, `updated_at` | operacionais |
 
-Índice único parcial permite uma sessão `ACTIVE` ou `STARTED` por invitation.
-O token bruto tem 32 bytes CSPRNG, existe apenas na memória do navegador e no
-Edge durante o exchange e nunca é persistido. Retry com a mesma idempotency key
-e o mesmo hash retorna a mesma sessão; outro session hash entra em conflito.
+Índice único parcial permite uma sessão `ACTIVE` por invitation. O token bruto
+tem 32 bytes CSPRNG, existe apenas no Edge e na resposta do exchange e nunca é
+persistido. A tabela inclui `started_at` nullable para START sem novo estado.
 Tabela
 sem PII, com RLS, sem policies e sem grants diretos a `PUBLIC`, `anon`,
 `authenticated` ou `service_role`.
