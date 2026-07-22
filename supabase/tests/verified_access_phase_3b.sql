@@ -37,10 +37,13 @@ select ok((select bool_and(p.prosecdef and p.proconfig @> array['search_path=pub
     'verified_access_public_registration_status'
   )), 'public registration RPCs are security definer with fixed search_path');
 select ok((select bool_and(
-    not has_function_privilege('PUBLIC',p.oid,'EXECUTE')
-    and not has_function_privilege('anon',p.oid,'EXECUTE')
+    not has_function_privilege('anon',p.oid,'EXECUTE')
     and not has_function_privilege('authenticated',p.oid,'EXECUTE')
     and has_function_privilege('service_role',p.oid,'EXECUTE')
+    and not exists (
+      select 1 from aclexplode(p.proacl) a
+      where a.grantee = 0 and a.privilege_type = 'EXECUTE'
+    )
   ) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='public' and p.proname in (
     'verified_access_public_exchange_invitation','verified_access_public_get_registration',
@@ -48,18 +51,24 @@ select ok((select bool_and(
     'verified_access_public_registration_status'
   )), 'only the Edge executor inherited by service_role reaches public RPCs');
 select ok((select bool_and(
-    not has_function_privilege('PUBLIC',p.oid,'EXECUTE')
-    and not has_function_privilege('anon',p.oid,'EXECUTE')
+    not has_function_privilege('anon',p.oid,'EXECUTE')
     and not has_function_privilege('authenticated',p.oid,'EXECUTE')
     and not has_function_privilege('service_role',p.oid,'EXECUTE')
+    and not exists (
+      select 1 from aclexplode(p.proacl) a
+      where a.grantee = 0 and a.privilege_type = 'EXECUTE'
+    )
   ) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='public' and p.proname like 'verified_access_phase3b_%'), 'Phase 3B helpers have no runtime EXECUTE');
 
 select ok((select bool_and(
-    not has_function_privilege('PUBLIC',p.oid,'EXECUTE')
-    and not has_function_privilege('anon',p.oid,'EXECUTE')
+    not has_function_privilege('anon',p.oid,'EXECUTE')
     and not has_function_privilege('authenticated',p.oid,'EXECUTE')
     and not has_function_privilege('service_role',p.oid,'EXECUTE')
+    and not exists (
+      select 1 from aclexplode(p.proacl) a
+      where a.grantee = 0 and a.privilege_type = 'EXECUTE'
+    )
   ) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='public' and p.proname in (
     'verified_access_resend_resident_invitation_phase3a',
