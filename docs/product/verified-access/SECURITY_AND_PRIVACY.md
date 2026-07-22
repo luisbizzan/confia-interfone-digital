@@ -195,3 +195,27 @@ Antes da Rede Confia operacional:
 - dupla aprovação;
 - portal do titular;
 - expiração e correção.
+
+## 11. Gate proposto para cadastro público da Fase 3B
+
+O cadastro público proposto usa troca única do token de convite por sessão
+opaca curta. Somente hashes versionados são persistidos; token, session token e
+IP bruto não entram em banco, logs, audit ou outbox. As tabelas permanecem sob
+RLS default-deny e runtime roles não recebem acesso direto.
+
+PII local reutiliza `verified_access_identity_profiles`: valores necessários à
+operação futura são ciphertext reversível; CPF/documento usam HMAC por tenant
+apenas para unicidade e lookup local; telefone permanece não único. Dados de
+responsável por menor também são ciphertext. Não há JSON genérico com PII,
+função SQL de criptografia/descriptografia, imagem, biometria, background ou
+provider real.
+
+A proposta não persiste PII de rascunho. A submissão final grava profile,
+participant, slot, invitation, session, audit e outbox em uma transação. Audit
+e outbox contêm somente IDs, códigos, versões, status, timestamps e correlation
+ID. O morador recebe apenas status.
+
+Antes da implementação, exigem aprovação humana: base legal, versões finais do
+privacy notice e termos, menores, retenção submetida, domínio/proxy same-origin,
+gestão de chaves, rate limiting distribuído, exclusão/anonimização, correção,
+acesso futuro da portaria e responsável DPO/jurídico.

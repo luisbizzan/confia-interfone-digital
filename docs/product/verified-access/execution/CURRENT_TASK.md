@@ -2,14 +2,15 @@
 
 ## Estado
 
-- A Fase 3A foi implementada e validada na branch
-  `agent/verified-access-phase-3`.
-- Head técnico validado: `43de21a3f4b15206565e911cc4dcf60869597538`.
-- CI principal verde: `29871859260`.
-- O PR #7 permanece draft e aguarda revisão do PO.
-- As Fases 3B e 3C não estão autorizadas.
+- A Fase 3A foi mergeada na `main` pelo squash
+  `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`.
+- A evidência técnica permanece em `docs/verified-access-phase-3a-validation.md`.
+- O contrato proposto da Fase 3B está em revisão humana em
+  `docs/product/verified-access/phases/PHASE_3B.md`.
+- As Fases 3B e 3C não estão autorizadas para implementação.
 
 ## Próxima execução
 
-Aguardar novo contrato versionado e explícito do PO. Não há implementação
-ativa, migration remota autorizada ou feature autorizada para habilitação.
+Aguardar aprovação humana dos blockers e novo contrato versionado e explícito
+do PO. Não há implementação ativa, migration remota autorizada ou feature
+autorizada para habilitação.

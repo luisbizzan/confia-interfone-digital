@@ -683,12 +683,17 @@ Permanecem abertos e não podem ser resolvidos por inferência:
 ## 25. Confirmações
 
 - Fase 2 está mergeada.
-- Fase 3 está apenas planejada.
+- Fase 3A foi mergeada na `main` pelo squash
+  `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`.
+- O contrato proposto da Fase 3B está em [`PHASE_3B.md`](PHASE_3B.md), em
+  revisão humana e sem autorização de implementação.
+- Fase 3C permanece não autorizada.
 - `CURRENT_TASK` deve permanecer `NO ACTIVE IMPLEMENTATION`.
 - Nenhuma migration remota.
 - Nenhuma feature habilitada.
 - Nenhuma integração real.
-- Somente o escopo técnico fechado da Fase 3A na seção 26 está autorizado.
+- A seção 26 registra o contrato histórico já entregue da Fase 3A; não existe
+  contrato técnico ativo para Fase 3B ou 3C.
 
 ## 26. Contrato executável da Fase 3A
 
