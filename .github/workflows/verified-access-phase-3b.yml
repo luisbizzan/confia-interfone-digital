@@ -1,0 +1,175 @@
+name: Verified Access Phase 3B
+
+on:
+  push:
+    branches: [agent/verified-access-phase-3b]
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "apps/verified-access-public/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/verified-access-phase-3b.yml"
+      - "docs/product/verified-access/**"
+      - "docs/verified-access-phase-3b-validation.md"
+  workflow_dispatch:
+
+concurrency:
+  group: verified-access-phase-3b-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: database
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - run: npm ci
+      - run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - name: Start Supabase local stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          raw=/tmp/verified-access-phase-3b-start-raw.log
+          safe=/tmp/verified-access-phase-3b-start-sanitized.log
+          : > "$raw"
+          : > "$safe"
+          started=0
+          for attempt in 1 2 3; do
+            npx supabase stop --no-backup >> "$raw" 2>&1 || true
+            if npx supabase start >> "$raw" 2>&1; then started=1; break; fi
+            sleep $((attempt * 20))
+          done
+          sed -E \
+            -e '/(Publishable key|Secret key|Access key|Storage secret|JWT secret|anon key|service_role key|API URL|DB URL|JWT_SECRET|POSTGRES_PASSWORD)/Id' \
+            -e 's#postgres(ql)?://[^[:space:]]+#postgres://[redacted]#g' \
+            -e 's#eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+#[redacted-jwt]#g' \
+            "$raw" > "$safe"
+          rm -f "$raw"
+          test "$started" -eq 1 || { tail -100 "$safe"; exit 1; }
+      - name: Apply migrations
+        run: npx supabase db reset
+      - name: Run pgTAP
+        run: npx supabase test db
+      - name: Run integration SQL for Phases 1A through 3B
+        env: { PGPASSWORD: postgres }
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            supabase/tests/verified_access_phase_1a_integration.psql \
+            supabase/tests/verified_access_phase_1b_integration.psql \
+            supabase/tests/verified_access_phase_1c_integration.psql \
+            supabase/tests/verified_access_phase_2_integration.psql \
+            supabase/tests/verified_access_phase_3a_integration.psql \
+            supabase/tests/verified_access_phase_3b_integration.psql
+          do
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$file"
+          done
+      - name: Run Phase 3B runtime role checks
+        env: { PGPASSWORD: postgres }
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_3b_runtime_roles.psql
+      - name: Database lint
+        run: npx supabase db lint
+      - name: Roll back Phase 3B
+        env: { PGPASSWORD: postgres }
+        run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rollback/verified_access_phase_3b_rollback.sql
+      - name: Verify rollback and Phase 1A-3A preservation
+        env: { PGPASSWORD: postgres }
+        shell: bash
+        run: |
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          do $$ begin
+            if to_regclass('public.verified_access_public_sessions') is not null
+               or to_regclass('public.verified_access_public_registration_commands') is not null
+               or to_regclass('public.verified_access_public_rate_limits') is not null then
+              raise exception 'Phase 3B table survived rollback';
+            end if;
+            if exists(select 1 from pg_roles where rolname='verified_access_phase3b_public_executor') then raise exception 'Phase 3B role survived rollback'; end if;
+            if exists(select 1 from information_schema.columns where table_schema='public' and table_name='verified_access_identity_profiles' and column_name in ('is_minor','guardian_name_ciphertext','guardian_relationship_ciphertext','privacy_notice_version','terms_version','acknowledged_at','submitted_at')) then raise exception 'Phase 3B profile column survived rollback'; end if;
+            if to_regclass('public.verified_access_invitations') is null
+               or to_regclass('public.verified_access_request_commands') is null
+               or to_regclass('public.verified_access_network_subjects') is null
+               or to_regclass('public.persons') is null then raise exception 'earlier phase object was removed'; end if;
+            if exists(select 1 from public.condominium_features where feature_key='VERIFIED_ACCESS' and enabled) then raise exception 'feature became enabled'; end if;
+          end $$;
+          SQL
+      - name: Reapply migrations and pgTAP
+        run: npx supabase db reset && npx supabase test db
+      - name: Post-reapplication integrations and runtime checks
+        env: { PGPASSWORD: postgres }
+        shell: bash
+        run: |
+          set -euo pipefail
+          for file in \
+            supabase/tests/verified_access_phase_1a_integration.psql \
+            supabase/tests/verified_access_phase_1b_integration.psql \
+            supabase/tests/verified_access_phase_1c_integration.psql \
+            supabase/tests/verified_access_phase_2_integration.psql \
+            supabase/tests/verified_access_phase_3a_integration.psql \
+            supabase/tests/verified_access_phase_3b_integration.psql
+          do
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$file"
+          done
+          psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_3b_runtime_roles.psql
+      - if: always()
+        run: npx supabase stop --no-backup || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-access-phase-3b-sanitized-diagnostics
+          path: /tmp/verified-access-phase-3b-start-sanitized.log
+          if-no-files-found: ignore
+
+  edge-functions:
+    name: edge-functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with: { deno-version: v2.x }
+      - name: Format check
+        run: deno fmt --check supabase/functions/_shared/verified-access/public-registration supabase/functions/verified-access-public-invitation-exchange supabase/functions/verified-access-public-registration-get supabase/functions/verified-access-public-registration-start supabase/functions/verified-access-public-registration-submit supabase/functions/verified-access-public-registration-status
+      - name: Lint
+        run: deno lint supabase/functions/_shared/verified-access/public-registration supabase/functions/verified-access-public-invitation-exchange supabase/functions/verified-access-public-registration-get supabase/functions/verified-access-public-registration-start supabase/functions/verified-access-public-registration-submit supabase/functions/verified-access-public-registration-status
+      - name: Type check
+        run: deno check supabase/functions/verified-access-public-invitation-exchange/index.ts supabase/functions/verified-access-public-registration-get/index.ts supabase/functions/verified-access-public-registration-start/index.ts supabase/functions/verified-access-public-registration-submit/index.ts supabase/functions/verified-access-public-registration-status/index.ts
+      - name: Unit tests
+        run: deno test --allow-env supabase/functions/_shared/verified-access/public-registration supabase/functions/verified-access-public-invitation-exchange supabase/functions/verified-access-public-registration-get supabase/functions/verified-access-public-registration-start supabase/functions/verified-access-public-registration-submit supabase/functions/verified-access-public-registration-status
+      - name: Reject logging and client-side secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          paths=(supabase/functions/_shared/verified-access/public-registration supabase/functions/verified-access-public-invitation-exchange supabase/functions/verified-access-public-registration-get supabase/functions/verified-access-public-registration-start supabase/functions/verified-access-public-registration-submit supabase/functions/verified-access-public-registration-status)
+          ! grep -RInE 'console\.(log|debug|info|warn|error)' "${paths[@]}"
+          ! grep -RInE 'SUPABASE_SERVICE_ROLE_KEY|service_role' apps/verified-access-public
+
+  public-web:
+    name: public-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - run: npm ci
+      - run: npm run lint --workspace verified-access-public
+      - run: npm run typecheck --workspace verified-access-public
+      - run: npm run test --workspace verified-access-public
+      - run: npm run build --workspace verified-access-public
+
+  admin-web:
+    name: admin-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "24", cache: npm }
+      - run: npm ci
+      - run: npm run admin:lint
+      - run: npm run admin:build

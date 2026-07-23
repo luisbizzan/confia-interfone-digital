@@ -1,6 +1,6 @@
 # Decisões vinculantes — Acesso Verificado e Rede Confia
 
-Atualizado em 16 de julho de 2026.
+Atualizado em 22 de julho de 2026.
 
 ## 1. Linguagem e semântica
 
@@ -206,3 +206,40 @@ Nenhuma migration habilita condomínio automaticamente.
 Merge no Git/Vercel não aplica migrations Supabase.
 
 Migrations do Acesso Verificado não serão aplicadas remotamente antes da reconciliação do migration drift histórico e de gate específico de staging.
+
+## 17. Propostas da Fase 3B para revisão humana
+
+Esta seção não é decisão jurídica final nem autorização de implementação. Ela
+registra a proposta de produto a ser confirmada por PO, segurança, privacidade
+e jurídico antes de um `CURRENT_TASK` executável:
+
+1. nome completo obrigatório;
+2. CPF obrigatório para brasileiros maiores de idade;
+3. RNM ou passaporte com emissor para estrangeiros;
+4. data de nascimento obrigatória;
+5. telefone opcional;
+6. menor exige nome e vínculo do responsável, sem validação automática;
+7. nenhuma imagem de documento;
+8. nenhuma biometria;
+9. nenhum background check;
+10. nenhum provider real;
+11. cadastro incompleto por no máximo sete dias após expiração/cancelamento,
+    com preferência por não persistir PII de rascunho;
+12. retenção de cadastro submetido permanece blocker jurídico;
+13. página pública isolada do backoffice;
+14. preferência por `apps/verified-access-public` no monorepo;
+15. token de convite trocado por sessão curta na primeira abertura válida;
+16. token original não usado nas operações seguintes;
+17. sessão opaca, revogável, expirável e ligada a invitation + slot;
+18. uma submissão final por convite;
+19. correção posterior fora da Fase 3B;
+20. ciência do privacy notice e aceite de termos, sem presumir consentimento
+    como base legal;
+21. morador vê somente status, nunca PII;
+22. `IdentityProvider` não é chamado;
+23. `MessagingProvider` permanece fake;
+24. `VERIFIED_ACCESS` permanece desligada;
+25. nenhuma migration remota.
+
+Base legal, textos, retenção definitiva, menores, domínio, chaves e rate
+limiting dependem de aprovação humana e permanecem blockers.
