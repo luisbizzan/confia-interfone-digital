@@ -1,8 +1,8 @@
 # Fase 3 — convite e cadastro público
 
-**Status:** Fase 3A autorizada / Fases 3B e 3C não autorizadas
+**Status:** Fases 3A e 3B mergeadas / Fase 3C implementada e validada
 
-Stage: `3A autorizada / aguardando execução`.
+Stage: `3B mergeada / 3C implementada, validada e sem rollout`.
 
 ## 1. Objetivo
 
@@ -619,48 +619,22 @@ Sugestão de divisão:
 - revisão de privacidade;
 - rollout fake.
 
-A divisão deve ser confirmada antes de contrato executável.
+A divisão foi adotada: 3A e 3B foram entregues em mudanças separadas. A
+subseção 3C foi implementada por contrato próprio e permanece sem rollout.
 
-As subseções 3A, 3B e 3C são uma proposta de planejamento, não uma autorização
-nem uma decisão já aprovada.
+## 23. Contrato da Fase 3C
 
-## 23. Allowlist futura
-
-O gate documental seguinte deve definir paths exatos para:
-
-- migrations;
-- rollback;
-- RPCs;
-- Edge Functions autenticadas;
-- Edge Functions públicas;
-- shared modules;
-- página web pública;
-- testes SQL;
-- testes Deno;
-- testes web;
-- workflow CI;
-- config;
-- documentação.
-
-Nenhum path técnico está autorizado por este documento.
+O escopo, allowlist, jobs, privilégios, retenção não sensível, scheduler
+manual, testes e rollback da Fase 3C estão definidos em
+[`PHASE_3C.md`](PHASE_3C.md).
 
 ## 24. Gates
 
-Antes da implementação:
-
-- decidir divisão 3A/3B/3C;
-- aprovar PII mínima;
-- aprovar base legal e privacy notice;
-- confirmar modelo do token;
-- confirmar estados;
-- confirmar página web e domínio;
-- confirmar provider fake;
-- confirmar idempotência;
-- confirmar rate limiting;
-- confirmar migrations;
-- confirmar rollback;
-- fechar allowlist;
-- criar `CURRENT_TASK` executável.
+Os gates técnicos de 3A e 3B foram exercitados nas respectivas validações. A
+Fase 3C deve concluir migrations locais, pgTAP, integração, runtime roles,
+Edge, aplicações, rollback, preservação, reaplicação e CI antes da revisão.
+Feature enablement, migration remota, scheduler remoto e rollout continuam em
+gate humano separado.
 
 ### 24.1 Blockers humanos obrigatórios
 
@@ -675,25 +649,27 @@ Permanecem abertos e não podem ser resolvidos por inferência:
 - texto e versionamento do privacy notice;
 - prazos e eventos de retenção e descarte;
 - domínio e isolamento da página pública;
-- estratégia e limites de rate limiting;
-- modelo final do token, troca por sessão, uso único, rotação e recuperação;
-- divisão final e ordem de autorização de 3A, 3B e 3C;
-- momento de criação do participante diante do contrato real de messaging.
+- estratégia e limites de rate limiting distribuído;
+- backend de scheduler;
+- monitoramento, alertas, incident response e suporte;
+- aprovação formal de rollout;
+- política futura de biometria.
 
 ## 25. Confirmações
 
 - Fase 2 está mergeada.
 - Fase 3A foi mergeada na `main` pelo squash
   `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`.
-- O contrato proposto da Fase 3B está em [`PHASE_3B.md`](PHASE_3B.md), em
-  revisão humana e sem autorização de implementação.
-- Fase 3C permanece não autorizada.
-- `CURRENT_TASK` deve permanecer `NO ACTIVE IMPLEMENTATION`.
+- A Fase 3B foi mergeada na `main` pelo squash
+  `ec17587d4ba1d7173b97730aa9284a1d94581392`.
+- A implementação local da Fase 3C está em [`PHASE_3C.md`](PHASE_3C.md),
+  validada em CI e sem rollout.
+- `CURRENT_TASK` contém o contrato técnico ativo somente durante esta execução
+  e deve voltar a `NO ACTIVE IMPLEMENTATION` no fechamento.
 - Nenhuma migration remota.
 - Nenhuma feature habilitada.
 - Nenhuma integração real.
-- A seção 26 registra o contrato histórico já entregue da Fase 3A; não existe
-  contrato técnico ativo para Fase 3B ou 3C.
+- A seção 26 registra o contrato histórico já entregue da Fase 3A.
 
 ## 26. Contrato executável da Fase 3A
 
@@ -702,7 +678,9 @@ Permanecem abertos e não podem ser resolvidos por inferência:
 A Fase 3A implementa somente convite local, token opaco, quatro operações
 autenticadas do morador e preview por `MessagingProvider` fake. Não cria
 participant, identity profile, PII, sessão pública, endpoint público, página,
-job externo ou integração real. As Fases 3B e 3C permanecem não autorizadas.
+job externo ou integração real. No momento desse contrato histórico, as Fases
+3B e 3C não estavam autorizadas; a 3B foi posteriormente entregue por contrato
+próprio e a 3C foi posteriormente implementada por contrato próprio.
 
 O slot permanece `OPEN` durante toda a Fase 3A. A tabela de convites controla a
 reserva lógica por índice único parcial. A primeira emissão pode mover a request

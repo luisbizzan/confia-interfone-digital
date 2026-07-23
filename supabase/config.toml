@@ -125,3 +125,8 @@ entrypoint = "./functions/verified-access-public-registration-submit/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/verified-access-public-registration-status/index.ts"
+
+[functions.verified-access-maintenance-run]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/verified-access-maintenance-run/index.ts"

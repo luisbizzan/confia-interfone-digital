@@ -14,7 +14,8 @@ Este diretório é a fonte de verdade de produto, domínio, segurança e execuç
 | [`phases/PHASE_1D.md`](phases/PHASE_1D.md) | Plano dos contratos e providers fake da Fase 1D |
 | [`phases/PHASE_2.md`](phases/PHASE_2.md) | Plano das solicitações autenticadas do morador |
 | [`phases/PHASE_3.md`](phases/PHASE_3.md) | Planejamento de convites e cadastro público |
-| [`phases/PHASE_3B.md`](phases/PHASE_3B.md) | Contrato proposto do cadastro público da Fase 3B |
+| [`phases/PHASE_3B.md`](phases/PHASE_3B.md) | Contrato implementado do cadastro público da Fase 3B |
+| [`phases/PHASE_3C.md`](phases/PHASE_3C.md) | Contrato proposto de hardening e prontidão para rollout |
 | [`SPECIFICATION.md`](SPECIFICATION.md) | Especificação funcional e técnica completa |
 | [`SECURITY_AND_PRIVACY.md`](SECURITY_AND_PRIVACY.md) | Segurança, LGPD, retenção, revisão e contestação |
 | [`INTEGRATIONS.md`](INTEGRATIONS.md) | Estratégia de providers e integrações |
@@ -45,9 +46,10 @@ DECISIONS.md
 - Commit da Fase 2: `a464de1175ae924644cfc2aa71eab7f27cc61cd5`.
 - Fase 3A — convites locais: mergeada na `main`.
 - Commit da Fase 3A: `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`.
-- Fase 3B — cadastro público web: planejada, em revisão humana e não
+- Fase 3B — cadastro público web: mergeada na `main`.
+- Commit da Fase 3B: `ec17587d4ba1d7173b97730aa9284a1d94581392`.
+- Fase 3C — hardening e prontidão para rollout: planejada, em revisão e não
   autorizada para implementação.
-- Fase 3C — hardening: não autorizada.
 - Nenhuma migration do Acesso Verificado foi aplicada ao Supabase remoto.
 - Todas as features permanecem desligadas.
 - O deploy Vercel do merge é independente das migrations Supabase.

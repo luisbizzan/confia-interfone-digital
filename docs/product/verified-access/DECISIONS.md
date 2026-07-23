@@ -1,6 +1,6 @@
 # Decisões vinculantes — Acesso Verificado e Rede Confia
 
-Atualizado em 22 de julho de 2026.
+Atualizado em 23 de julho de 2026.
 
 ## 1. Linguagem e semântica
 
@@ -243,3 +243,33 @@ e jurídico antes de um `CURRENT_TASK` executável:
 
 Base legal, textos, retenção definitiva, menores, domínio, chaves e rate
 limiting dependem de aprovação humana e permanecem blockers.
+
+## 18. Propostas da Fase 3C para revisão humana
+
+Esta seção registra propostas operacionais, não decisões finais nem autorização
+de implementação:
+
+1. expiração permanece validada inline e também será materializada por jobs
+   idempotentes em batches limitados;
+2. invitation expirada/revogada encerra sessões `ACTIVE` dependentes;
+3. nenhuma PII de rascunho existe; participant/profile parcial é finding;
+4. public sessions terminais podem ser removidas após 7 dias;
+5. rate buckets podem ser removidos após janela e margem aprovada;
+6. commands concluídos podem ser removidos após 30 dias;
+7. commands presos/incompletos exigem reconciliação e prazo proposto de 7 dias;
+8. invitations expiradas/revogadas têm proposta de 90 dias, sujeita a
+   jurídico;
+9. outbox processada tem proposta de 30 a 90 dias;
+10. retenção e anonimização de PII submetida ou cancelada permanecem blockers;
+11. a topologia inicial recomendada reutiliza scheduler externo -> Edge -> RPC,
+    com segredo dedicado, assinatura, privilégio mínimo e fallback manual;
+12. rate limiting futuro será em camadas, sem remover o limite transacional;
+13. reconciliação automática só corrige estados cuja evidência estrutural é
+    inequívoca e nunca cria ou move identidade;
+14. observabilidade usa somente IDs/códigos e métricas agregadas sem PII;
+15. rollout exige gates separados de jurídico, DPO, segurança, operação e
+    migration;
+16. Fase 4 exige contrato próprio e não é autorizada pela Fase 3C.
+
+As propostas completas e seus blockers estão em
+[`phases/PHASE_3C.md`](phases/PHASE_3C.md).

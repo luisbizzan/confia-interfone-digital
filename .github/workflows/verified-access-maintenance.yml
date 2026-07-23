@@ -1,0 +1,94 @@
+name: Verified Access Maintenance
+
+on:
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Maintenance job
+        required: true
+        type: choice
+        options:
+          - expire_invitations
+          - expire_public_sessions
+          - purge_public_commands
+          - purge_rate_limit_buckets
+          - reconcile_public_registration_state
+          - process_outbox
+          - apply_retention_policy
+      batch_size:
+        description: Bounded batch size (1-500)
+        required: true
+        default: "100"
+        type: string
+      dry_run:
+        description: Report candidates without mutation
+        required: true
+        default: true
+        type: boolean
+
+concurrency:
+  group: verified-access-maintenance
+  cancel-in-progress: false
+
+jobs:
+  invoke:
+    name: invoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: verified-access-maintenance
+    steps:
+      - name: Validate input and invoke internal endpoint
+        shell: bash
+        env:
+          MAINTENANCE_URL: ${{ secrets.VERIFIED_ACCESS_MAINTENANCE_URL }}
+          MAINTENANCE_SECRET: ${{ secrets.VERIFIED_ACCESS_MAINTENANCE_SECRET }}
+          JOB: ${{ inputs.job }}
+          BATCH_SIZE: ${{ inputs.batch_size }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          [[ "$BATCH_SIZE" =~ ^[0-9]+$ ]]
+          [ "$BATCH_SIZE" -ge 1 ] && [ "$BATCH_SIZE" -le 500 ]
+          [ -n "$MAINTENANCE_URL" ] && [ -n "$MAINTENANCE_SECRET" ]
+          correlation="gha-$(cat /proc/sys/kernel/random/uuid)"
+          payload=$(jq -cn \
+            --arg job "$JOB" \
+            --argjson batchSize "$BATCH_SIZE" \
+            --argjson dryRun "$DRY_RUN" \
+            '{job:$job,batchSize:$batchSize,dryRun:$dryRun}')
+          status=$(curl \
+            --silent \
+            --show-error \
+            --connect-timeout 10 \
+            --max-time 40 \
+            --retry 2 \
+            --retry-all-errors \
+            --output /tmp/maintenance-response.json \
+            --write-out '%{http_code}' \
+            --request POST \
+            --header 'content-type: application/json' \
+            --header "x-maintenance-secret: $MAINTENANCE_SECRET" \
+            --header "x-correlation-id: $correlation" \
+            --data "$payload" \
+            "$MAINTENANCE_URL")
+          [ "$status" = "200" ]
+          jq -e '
+            .data
+            | keys_unsorted - ["job","dryRun","processed","skipped","failed","remaining"]
+            | length == 0
+          ' /tmp/maintenance-response.json >/dev/null
+          jq -e '
+            .data.processed >= 0
+            and .data.skipped >= 0
+            and .data.failed >= 0
+            and .data.remaining >= 0
+          ' /tmp/maintenance-response.json >/dev/null
+          {
+            echo "### Verified Access maintenance"
+            echo
+            jq -r '
+              .data
+              | "- Job: `\(.job)`\n- Dry run: `\(.dryRun)`\n- Processed: `\(.processed)`\n- Skipped: `\(.skipped)`\n- Failed: `\(.failed)`\n- Remaining (capped): `\(.remaining)`"
+            ' /tmp/maintenance-response.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f /tmp/maintenance-response.json
