@@ -1,8 +1,8 @@
 # Fase 3 — convite e cadastro público
 
-**Status:** Fases 3A e 3B mergeadas / Fase 3C planejada e não autorizada
+**Status:** Fases 3A e 3B mergeadas / Fase 3C implementada e validada
 
-Stage: `3B mergeada / 3C planejada, em revisão e não autorizada`.
+Stage: `3B mergeada / 3C implementada, validada e sem rollout`.
 
 ## 1. Objetivo
 
@@ -620,38 +620,21 @@ Sugestão de divisão:
 - rollout fake.
 
 A divisão foi adotada: 3A e 3B foram entregues em mudanças separadas. A
-subseção 3C permanece planejamento e depende de contrato executável próprio.
+subseção 3C foi implementada por contrato próprio e permanece sem rollout.
 
-## 23. Allowlist futura
+## 23. Contrato da Fase 3C
 
-O gate documental seguinte deve definir paths exatos para:
-
-- migrations;
-- rollback;
-- RPCs;
-- Edge Functions autenticadas;
-- Edge Functions públicas;
-- shared modules;
-- página web pública;
-- testes SQL;
-- testes Deno;
-- testes web;
-- workflow CI;
-- config;
-- documentação.
-
-Nenhum path técnico da Fase 3C está autorizado por este documento.
+O escopo, allowlist, jobs, privilégios, retenção não sensível, scheduler
+manual, testes e rollback da Fase 3C estão definidos em
+[`PHASE_3C.md`](PHASE_3C.md).
 
 ## 24. Gates
 
-Os gates técnicos de 3A e 3B foram exercitados nas respectivas validações. Os
-blockers humanos de produção não foram resolvidos pelo merge. A Fase 3C exige:
-
-- revisão do contrato em [`PHASE_3C.md`](PHASE_3C.md);
-- aprovação de retenção, anonimização, scheduler e rate limiting distribuído;
-- migrations, rollback, allowlist e testes fechados;
-- novo `CURRENT_TASK` executável;
-- feature desligada e rollout em gate separado.
+Os gates técnicos de 3A e 3B foram exercitados nas respectivas validações. A
+Fase 3C deve concluir migrations locais, pgTAP, integração, runtime roles,
+Edge, aplicações, rollback, preservação, reaplicação e CI antes da revisão.
+Feature enablement, migration remota, scheduler remoto e rollout continuam em
+gate humano separado.
 
 ### 24.1 Blockers humanos obrigatórios
 
@@ -679,14 +662,14 @@ Permanecem abertos e não podem ser resolvidos por inferência:
   `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`.
 - A Fase 3B foi mergeada na `main` pelo squash
   `ec17587d4ba1d7173b97730aa9284a1d94581392`.
-- O contrato proposto da Fase 3C está em [`PHASE_3C.md`](PHASE_3C.md), em
-  revisão humana e sem autorização de implementação.
-- `CURRENT_TASK` deve permanecer `NO ACTIVE IMPLEMENTATION`.
+- A implementação local da Fase 3C está em [`PHASE_3C.md`](PHASE_3C.md),
+  validada em CI e sem rollout.
+- `CURRENT_TASK` contém o contrato técnico ativo somente durante esta execução
+  e deve voltar a `NO ACTIVE IMPLEMENTATION` no fechamento.
 - Nenhuma migration remota.
 - Nenhuma feature habilitada.
 - Nenhuma integração real.
-- A seção 26 registra o contrato histórico já entregue da Fase 3A; não existe
-  contrato técnico ativo para Fase 3C.
+- A seção 26 registra o contrato histórico já entregue da Fase 3A.
 
 ## 26. Contrato executável da Fase 3A
 
@@ -697,7 +680,7 @@ autenticadas do morador e preview por `MessagingProvider` fake. Não cria
 participant, identity profile, PII, sessão pública, endpoint público, página,
 job externo ou integração real. No momento desse contrato histórico, as Fases
 3B e 3C não estavam autorizadas; a 3B foi posteriormente entregue por contrato
-próprio e a 3C continua não autorizada.
+próprio e a 3C foi posteriormente implementada por contrato próprio.
 
 O slot permanece `OPEN` durante toda a Fase 3A. A tabela de convites controla a
 reserva lógica por índice único parcial. A primeira emissão pode mover a request
