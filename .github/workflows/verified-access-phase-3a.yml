@@ -65,11 +65,14 @@ jobs:
         run: psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/tests/verified_access_phase_3a_runtime_roles.psql
       - name: Database lint
         run: npx supabase db lint
-      - name: Roll back Phase 3B then Phase 3A
+      - name: Roll back Phase 3C, Phase 3B then Phase 3A
         env: { PGPASSWORD: postgres }
         shell: bash
         run: |
           set -euo pipefail
+          if [ -f supabase/rollback/verified_access_phase_3c_rollback.sql ]; then
+            psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rollback/verified_access_phase_3c_rollback.sql
+          fi
           if [ -f supabase/rollback/verified_access_phase_3b_rollback.sql ]; then
             psql -h 127.0.0.1 -p 54322 -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/rollback/verified_access_phase_3b_rollback.sql
           fi
