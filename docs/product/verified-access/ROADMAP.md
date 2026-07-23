@@ -1,6 +1,6 @@
 # Roadmap — Acesso Verificado
 
-Atualizado em 22 de julho de 2026.
+Atualizado em 23 de julho de 2026.
 
 | Fase | Estado | Evidência/Gate |
 |---|---|---|
@@ -11,8 +11,8 @@ Atualizado em 22 de julho de 2026.
 | Fase 1D — contratos e providers fake | Mergeada | `4284085959e185892f00c77dd89138838ba1dcdb` |
 | Fase 2 — solicitações do morador | Mergeada | `a464de1175ae924644cfc2aa71eab7f27cc61cd5` |
 | Fase 3A — convites locais | Mergeada | `4b4c24e3d85669acbcfb439eb7bcfd544beb2114` |
-| Fase 3B — cadastro público web | Planejada / em revisão humana / não autorizada | `phases/PHASE_3B.md` |
-| Fase 3C — hardening | Não autorizada | depende da Fase 3B e de blockers humanos |
+| Fase 3B — cadastro público web | Mergeada | `ec17587d4ba1d7173b97730aa9284a1d94581392` |
+| Fase 3C — hardening e prontidão para rollout | Planejada / em revisão / não autorizada | `phases/PHASE_3C.md` |
 | Fase 4 — identidade fake | Não iniciada | adapters/orquestração |
 | Fase 5 — identidade real | Bloqueada | POC, contrato e privacidade |
 | Fases 6/7 — background | Bloqueadas | jurídico, POC e RBAC |
@@ -111,9 +111,17 @@ sanitizados, testes, rollback, reaplicação e CI.
 
 A Fase 3A foi mergeada na `main` pelo squash commit
 `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`, com convite local hash-only,
-operações autenticadas do morador e mensageria fake. A Fase 3B possui contrato
-proposto em revisão humana, mas não existe contrato técnico ativo e sua
-implementação não está autorizada. A Fase 3C também não está autorizada.
+operações autenticadas do morador e mensageria fake.
+
+A Fase 3B foi mergeada na `main` pelo squash commit
+`ec17587d4ba1d7173b97730aa9284a1d94581392`, com sessões públicas hash-only,
+cadastro submetido protegido, participante/slot transacionais, rate limiting
+local, Edge Functions e aplicação web pública isolada.
+
+A Fase 3C possui contrato documental em
+`docs/product/verified-access/phases/PHASE_3C.md`. Ela está planejada, em
+revisão e não autorizada. Jobs, scheduler, retenção, rollout e Fase 4 não estão
+autorizados.
 
 ## Migration drift
 

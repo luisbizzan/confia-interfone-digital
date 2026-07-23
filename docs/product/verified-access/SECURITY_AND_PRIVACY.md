@@ -219,3 +219,28 @@ Antes da implementação, exigem aprovação humana: base legal, versões finais
 privacy notice e termos, menores, retenção submetida, domínio/proxy same-origin,
 gestão de chaves, rate limiting distribuído, exclusão/anonimização, correção,
 acesso futuro da portaria e responsável DPO/jurídico.
+
+## 12. Gate proposto de hardening da Fase 3C
+
+O hardening deve preservar a autorização inline por expiração mesmo quando o
+scheduler estiver indisponível. Jobs futuros serão idempotentes, concorrentes,
+limitados por batch, com locks seguros, dry-run e métricas sem PII.
+
+Retenção deve ser separada por invitation, session, command, rate bucket,
+audit, outbox, profile, participant e request. Os prazos operacionais propostos
+não tornam definitiva a retenção de PII. Ciphertext, HMAC, backups, legal hold,
+anonimização e prova de descarte exigem política explícita.
+
+Rate limiting deve combinar defesa de borda, backend distribuído e controle
+transacional. IP bruto, token, ciphertext e fingerprints não podem ser
+dimensões de observabilidade. Headers de origem só são confiáveis quando
+produzidos por proxy aprovado.
+
+Reconciliação não pode criar participant/profile, descriptografar PII, reabrir
+estado terminal ou inferir identidade. Findings que envolvam PII, vínculo civil
+ou evidência ambígua exigem revisão manual.
+
+Antes de qualquer rollout: jurídico/DPO, base legal, notice/termos, retenção,
+anonimização, chaves, domínio/proxy, scheduler, rate limiting distribuído,
+monitoramento, alertas, suporte, incident response, rollback e migration remota
+devem possuir gates próprios. A Fase 3C não autoriza produção nem Fase 4.

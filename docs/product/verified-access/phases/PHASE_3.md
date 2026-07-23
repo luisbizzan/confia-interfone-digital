@@ -1,8 +1,8 @@
 # Fase 3 — convite e cadastro público
 
-**Status:** Fase 3A autorizada / Fases 3B e 3C não autorizadas
+**Status:** Fases 3A e 3B mergeadas / Fase 3C planejada e não autorizada
 
-Stage: `3A autorizada / aguardando execução`.
+Stage: `3B mergeada / 3C planejada, em revisão e não autorizada`.
 
 ## 1. Objetivo
 
@@ -619,10 +619,8 @@ Sugestão de divisão:
 - revisão de privacidade;
 - rollout fake.
 
-A divisão deve ser confirmada antes de contrato executável.
-
-As subseções 3A, 3B e 3C são uma proposta de planejamento, não uma autorização
-nem uma decisão já aprovada.
+A divisão foi adotada: 3A e 3B foram entregues em mudanças separadas. A
+subseção 3C permanece planejamento e depende de contrato executável próprio.
 
 ## 23. Allowlist futura
 
@@ -642,25 +640,18 @@ O gate documental seguinte deve definir paths exatos para:
 - config;
 - documentação.
 
-Nenhum path técnico está autorizado por este documento.
+Nenhum path técnico da Fase 3C está autorizado por este documento.
 
 ## 24. Gates
 
-Antes da implementação:
+Os gates técnicos de 3A e 3B foram exercitados nas respectivas validações. Os
+blockers humanos de produção não foram resolvidos pelo merge. A Fase 3C exige:
 
-- decidir divisão 3A/3B/3C;
-- aprovar PII mínima;
-- aprovar base legal e privacy notice;
-- confirmar modelo do token;
-- confirmar estados;
-- confirmar página web e domínio;
-- confirmar provider fake;
-- confirmar idempotência;
-- confirmar rate limiting;
-- confirmar migrations;
-- confirmar rollback;
-- fechar allowlist;
-- criar `CURRENT_TASK` executável.
+- revisão do contrato em [`PHASE_3C.md`](PHASE_3C.md);
+- aprovação de retenção, anonimização, scheduler e rate limiting distribuído;
+- migrations, rollback, allowlist e testes fechados;
+- novo `CURRENT_TASK` executável;
+- feature desligada e rollout em gate separado.
 
 ### 24.1 Blockers humanos obrigatórios
 
@@ -675,25 +666,27 @@ Permanecem abertos e não podem ser resolvidos por inferência:
 - texto e versionamento do privacy notice;
 - prazos e eventos de retenção e descarte;
 - domínio e isolamento da página pública;
-- estratégia e limites de rate limiting;
-- modelo final do token, troca por sessão, uso único, rotação e recuperação;
-- divisão final e ordem de autorização de 3A, 3B e 3C;
-- momento de criação do participante diante do contrato real de messaging.
+- estratégia e limites de rate limiting distribuído;
+- backend de scheduler;
+- monitoramento, alertas, incident response e suporte;
+- aprovação formal de rollout;
+- política futura de biometria.
 
 ## 25. Confirmações
 
 - Fase 2 está mergeada.
 - Fase 3A foi mergeada na `main` pelo squash
   `4b4c24e3d85669acbcfb439eb7bcfd544beb2114`.
-- O contrato proposto da Fase 3B está em [`PHASE_3B.md`](PHASE_3B.md), em
+- A Fase 3B foi mergeada na `main` pelo squash
+  `ec17587d4ba1d7173b97730aa9284a1d94581392`.
+- O contrato proposto da Fase 3C está em [`PHASE_3C.md`](PHASE_3C.md), em
   revisão humana e sem autorização de implementação.
-- Fase 3C permanece não autorizada.
 - `CURRENT_TASK` deve permanecer `NO ACTIVE IMPLEMENTATION`.
 - Nenhuma migration remota.
 - Nenhuma feature habilitada.
 - Nenhuma integração real.
 - A seção 26 registra o contrato histórico já entregue da Fase 3A; não existe
-  contrato técnico ativo para Fase 3B ou 3C.
+  contrato técnico ativo para Fase 3C.
 
 ## 26. Contrato executável da Fase 3A
 
@@ -702,7 +695,9 @@ Permanecem abertos e não podem ser resolvidos por inferência:
 A Fase 3A implementa somente convite local, token opaco, quatro operações
 autenticadas do morador e preview por `MessagingProvider` fake. Não cria
 participant, identity profile, PII, sessão pública, endpoint público, página,
-job externo ou integração real. As Fases 3B e 3C permanecem não autorizadas.
+job externo ou integração real. No momento desse contrato histórico, as Fases
+3B e 3C não estavam autorizadas; a 3B foi posteriormente entregue por contrato
+próprio e a 3C continua não autorizada.
 
 O slot permanece `OPEN` durante toda a Fase 3A. A tabela de convites controla a
 reserva lógica por índice único parcial. A primeira emissão pode mover a request
